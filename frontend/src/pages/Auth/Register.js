@@ -1,73 +1,142 @@
-import React, { useState } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
-    Avatar,
-    Button,
-    TextField,
-    Link,
-    Grid,
+    Container,
     Box,
     Typography,
-    Container,
+    TextField,
+    Button,
+    Link,
     Paper,
+    Grid,
     Alert,
     CircularProgress,
+    InputAdornment,
+    IconButton,
+    Stepper,
+    Step,
+    StepLabel
 } from '@mui/material';
-import { PersonAdd as PersonAddIcon } from '@mui/icons-material';
-import { useFormik } from 'formik';
-import * as Yup from 'yup';
-import { useAuth } from '../../utils/AuthContext';
+import {
+    Visibility as VisibilityIcon,
+    VisibilityOff as VisibilityOffIcon,
+    PersonAdd as PersonAddIcon
+} from '@mui/icons-material';
+import { AuthContext } from '../../context/AuthContext';
 
-const validationSchema = Yup.object({
-    name: Yup.string()
-        .required('Name is required'),
-    email: Yup.string()
-        .email('Enter a valid email')
-        .required('Email is required'),
-    password: Yup.string()
-        .min(8, 'Password should be of minimum 8 characters length')
-        .required('Password is required'),
-    confirmPassword: Yup.string()
-        .oneOf([Yup.ref('password'), null], 'Passwords must match')
-        .required('Confirm Password is required'),
-});
+const steps = ['Account Information', 'Personal Details'];
 
 const Register = () => {
-    const { register, error } = useAuth();
+    const { register, currentUser, loading, error } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
+    const [activeStep, setActiveStep] = useState(0);
+    const [formData, setFormData] = useState({
+        email: '',
+        password: '',
+        confirmPassword: '',
+        name: '',
+        route_time_preference: 'morning'
+    });
+    const [showPassword, setShowPassword] = useState(false);
+    const [formError, setFormError] = useState('');
     const [success, setSuccess] = useState(false);
 
-    const formik = useFormik({
-        initialValues: {
-            name: '',
-            email: '',
-            password: '',
-            confirmPassword: '',
-        },
-        validationSchema: validationSchema,
-        onSubmit: async (values) => {
-            setLoading(true);
-            const userData = {
-                name: values.name,
-                email: values.email,
-                password: values.password,
-            };
+    useEffect(() => {
+        // If user is already logged in, redirect to dashboard
+        if (currentUser) {
+            navigate('/dashboard');
+        }
+    }, [currentUser, navigate]);
 
-            const result = await register(userData);
-            setLoading(false);
+    const handleInputChange = (field, value) => {
+        setFormData({
+            ...formData,
+            [field]: value
+        });
+    };
 
-            if (result) {
+    const handleTogglePasswordVisibility = () => {
+        setShowPassword(!showPassword);
+    };
+
+    const validateStep1 = () => {
+        if (!formData.email) {
+            setFormError('Email is required');
+            return false;
+        }
+        if (!formData.email.includes('@')) {
+            setFormError('Please enter a valid email address');
+            return false;
+        }
+        if (!formData.password) {
+            setFormError('Password is required');
+            return false;
+        }
+        if (formData.password.length < 8) {
+            setFormError('Password must be at least 8 characters long');
+            return false;
+        }
+        if (formData.password !== formData.confirmPassword) {
+            setFormError('Passwords do not match');
+            return false;
+        }
+        return true;
+    };
+
+    const validateStep2 = () => {
+        if (!formData.name) {
+            setFormError('Name is required');
+            return false;
+        }
+        return true;
+    };
+
+    const handleNext = () => {
+        setFormError('');
+
+        if (activeStep === 0) {
+            if (validateStep1()) {
+                setActiveStep(1);
+            }
+        } else if (activeStep === 1) {
+            if (validateStep2()) {
+                handleSubmit();
+            }
+        }
+    };
+
+    const handleBack = () => {
+        setActiveStep((prevStep) => prevStep - 1);
+        setFormError('');
+    };
+
+    const handleSubmit = async () => {
+        setFormError('');
+
+        // Create user data object
+        const userData = {
+            email: formData.email,
+            password: formData.password,
+            name: formData.name,
+            route_time_preference: formData.route_time_preference
+        };
+
+        try {
+            const success = await register(userData);
+            if (success) {
                 setSuccess(true);
                 setTimeout(() => {
                     navigate('/login');
                 }, 3000);
             }
-        },
-    });
+        } catch (err) {
+            console.error('Registration error:', err);
+            setFormError('Registration failed. Please try again.');
+        }
+    };
 
     return (
-        <Container component="main" maxWidth="xs">
+        <Container component="main" maxWidth="sm">
             <Box
                 sx={{
                     marginTop: 8,
@@ -76,113 +145,158 @@ const Register = () => {
                     alignItems: 'center',
                 }}
             >
-                <Paper
-                    elevation={3}
-                    sx={{
-                        padding: 4,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        borderRadius: 2,
-                        width: '100%',
-                    }}
-                >
-                    <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
-                        <PersonAddIcon />
-                    </Avatar>
-                    <Typography component="h1" variant="h5">
-                        Sign up
-                    </Typography>
-
-                    {error && (
-                        <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
-                            {error}
-                        </Alert>
-                    )}
-
-                    {success && (
-                        <Alert severity="success" sx={{ mt: 2, width: '100%' }}>
-                            Registration successful! Please check your email to verify your account. Redirecting to login...
-                        </Alert>
-                    )}
-
-                    <Box component="form" onSubmit={formik.handleSubmit} noValidate sx={{ mt: 1, width: '100%' }}>
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            id="name"
-                            label="Full Name"
-                            name="name"
-                            autoComplete="name"
-                            autoFocus
-                            value={formik.values.name}
-                            onChange={formik.handleChange}
-                            error={formik.touched.name && Boolean(formik.errors.name)}
-                            helperText={formik.touched.name && formik.errors.name}
-                            disabled={loading || success}
-                        />
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            id="email"
-                            label="Email Address"
-                            name="email"
-                            autoComplete="email"
-                            value={formik.values.email}
-                            onChange={formik.handleChange}
-                            error={formik.touched.email && Boolean(formik.errors.email)}
-                            helperText={formik.touched.email && formik.errors.email}
-                            disabled={loading || success}
-                        />
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            name="password"
-                            label="Password"
-                            type="password"
-                            id="password"
-                            autoComplete="new-password"
-                            value={formik.values.password}
-                            onChange={formik.handleChange}
-                            error={formik.touched.password && Boolean(formik.errors.password)}
-                            helperText={formik.touched.password && formik.errors.password}
-                            disabled={loading || success}
-                        />
-                        <TextField
-                            margin="normal"
-                            required
-                            fullWidth
-                            name="confirmPassword"
-                            label="Confirm Password"
-                            type="password"
-                            id="confirmPassword"
-                            autoComplete="new-password"
-                            value={formik.values.confirmPassword}
-                            onChange={formik.handleChange}
-                            error={formik.touched.confirmPassword && Boolean(formik.errors.confirmPassword)}
-                            helperText={formik.touched.confirmPassword && formik.errors.confirmPassword}
-                            disabled={loading || success}
-                        />
-                        <Button
-                            type="submit"
-                            fullWidth
-                            variant="contained"
-                            sx={{ mt: 3, mb: 2 }}
-                            disabled={loading || success}
-                        >
-                            {loading ? <CircularProgress size={24} /> : 'Sign Up'}
-                        </Button>
-                        <Grid container justifyContent="flex-end">
-                            <Grid item>
-                                <Link component={RouterLink} to="/login" variant="body2">
-                                    Already have an account? Sign in
-                                </Link>
-                            </Grid>
-                        </Grid>
+                <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
+                    <Box sx={{ mb: 3, textAlign: 'center' }}>
+                        <Typography component="h1" variant="h4" gutterBottom>
+                            Async Calendar
+                        </Typography>
+                        <Typography component="h2" variant="h5">
+                            Create Account
+                        </Typography>
                     </Box>
+
+                    <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+                        {steps.map((label) => (
+                            <Step key={label}>
+                                <StepLabel>{label}</StepLabel>
+                            </Step>
+                        ))}
+                    </Stepper>
+
+                    {success ? (
+                        <Alert severity="success" sx={{ mb: 2 }}>
+                            Registration successful! You will be redirected to the login page.
+                        </Alert>
+                    ) : (
+                        <>
+                            {(error || formError) && (
+                                <Alert severity="error" sx={{ mb: 2 }}>
+                                    {formError || error}
+                                </Alert>
+                            )}
+
+                            <Box component="form" noValidate>
+                                {activeStep === 0 ? (
+                                    // Step 1: Account Information
+                                    <>
+                                        <TextField
+                                            margin="normal"
+                                            required
+                                            fullWidth
+                                            id="email"
+                                            label="Email Address"
+                                            name="email"
+                                            autoComplete="email"
+                                            autoFocus
+                                            value={formData.email}
+                                            onChange={(e) => handleInputChange('email', e.target.value)}
+                                            disabled={loading}
+                                        />
+                                        <TextField
+                                            margin="normal"
+                                            required
+                                            fullWidth
+                                            name="password"
+                                            label="Password"
+                                            type={showPassword ? 'text' : 'password'}
+                                            id="password"
+                                            autoComplete="new-password"
+                                            value={formData.password}
+                                            onChange={(e) => handleInputChange('password', e.target.value)}
+                                            disabled={loading}
+                                            InputProps={{
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        <IconButton
+                                                            aria-label="toggle password visibility"
+                                                            onClick={handleTogglePasswordVisibility}
+                                                            edge="end"
+                                                        >
+                                                            {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                                        </IconButton>
+                                                    </InputAdornment>
+                                                ),
+                                            }}
+                                        />
+                                        <TextField
+                                            margin="normal"
+                                            required
+                                            fullWidth
+                                            name="confirmPassword"
+                                            label="Confirm Password"
+                                            type={showPassword ? 'text' : 'password'}
+                                            id="confirmPassword"
+                                            value={formData.confirmPassword}
+                                            onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                                            disabled={loading}
+                                        />
+                                    </>
+                                ) : (
+                                    // Step 2: Personal Details
+                                    <>
+                                        <TextField
+                                            margin="normal"
+                                            required
+                                            fullWidth
+                                            id="name"
+                                            label="Full Name"
+                                            name="name"
+                                            autoComplete="name"
+                                            value={formData.name}
+                                            onChange={(e) => handleInputChange('name', e.target.value)}
+                                            disabled={loading}
+                                        />
+                                        <TextField
+                                            margin="normal"
+                                            fullWidth
+                                            select
+                                            id="routeTimePreference"
+                                            label="Preferred Meeting Time"
+                                            name="routeTimePreference"
+                                            value={formData.route_time_preference}
+                                            onChange={(e) => handleInputChange('route_time_preference', e.target.value)}
+                                            disabled={loading}
+                                            SelectProps={{
+                                                native: true,
+                                            }}
+                                        >
+                                            <option value="morning">Morning (8:00 - 12:00)</option>
+                                            <option value="afternoon">Afternoon (12:00 - 17:00)</option>
+                                            <option value="evening">Evening (17:00 - 21:00)</option>
+                                            <option value="any">Any Time</option>
+                                        </TextField>
+                                    </>
+                                )}
+
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+                                    <Button
+                                        onClick={handleBack}
+                                        disabled={activeStep === 0 || loading}
+                                    >
+                                        Back
+                                    </Button>
+                                    <Button
+                                        variant="contained"
+                                        onClick={handleNext}
+                                        disabled={loading}
+                                        startIcon={activeStep === steps.length - 1 ? (loading ? <CircularProgress size={20} /> : <PersonAddIcon />) : null}
+                                    >
+                                        {activeStep === steps.length - 1
+                                            ? (loading ? 'Creating Account...' : 'Create Account')
+                                            : 'Next'}
+                                    </Button>
+                                </Box>
+                            </Box>
+
+                            <Grid container justifyContent="flex-end" sx={{ mt: 3 }}>
+                                <Grid item>
+                                    <Link component={RouterLink} to="/login" variant="body2">
+                                        Already have an account? Sign in
+                                    </Link>
+                                </Grid>
+                            </Grid>
+                        </>
+                    )}
                 </Paper>
             </Box>
         </Container>

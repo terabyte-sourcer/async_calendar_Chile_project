@@ -1,14 +1,14 @@
 import axios from 'axios';
 
-// Base API configuration
+// Create axios instance with base URL
 const api = axios.create({
-    baseURL: '/api',
+    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
-// Add a request interceptor to add the auth token to requests
+// Add request interceptor to include auth token
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
@@ -22,17 +22,24 @@ api.interceptors.request.use(
     }
 );
 
-// Add a response interceptor to handle errors
+// Add response interceptor to handle common errors
 api.interceptors.response.use(
     (response) => {
         return response;
     },
     (error) => {
+        // Handle 401 Unauthorized errors (token expired or invalid)
         if (error.response && error.response.status === 401) {
-            // Unauthorized, clear token and redirect to login
+            // Clear local storage
             localStorage.removeItem('token');
-            window.location.href = '/login';
+            localStorage.removeItem('user');
+
+            // Redirect to login page if not already there
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
         }
+
         return Promise.reject(error);
     }
 );

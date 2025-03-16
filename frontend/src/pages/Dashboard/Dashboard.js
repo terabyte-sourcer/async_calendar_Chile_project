@@ -1,275 +1,329 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+    Container,
+    Typography,
     Box,
     Grid,
-    Typography,
-    Card,
-    CardContent,
-    CardActions,
+    Paper,
     Button,
-    Divider,
+    CircularProgress,
+    Alert,
     List,
     ListItem,
     ListItemText,
-    ListItemAvatar,
-    Avatar,
-    CircularProgress,
-    Paper,
+    Divider,
+    Card,
+    CardContent,
+    CardActions,
+    Chip
 } from '@mui/material';
 import {
     Event as EventIcon,
     CalendarMonth as CalendarIcon,
-    Group as GroupIcon,
     AccessTime as AccessTimeIcon,
+    Group as GroupIcon,
+    Add as AddIcon
 } from '@mui/icons-material';
-import { format } from 'date-fns';
-import { useAuth } from '../../utils/AuthContext';
-import { meetingAPI, calendarAPI, teamAPI } from '../../services/api';
+import { format, parseISO, isToday, isTomorrow, addDays } from 'date-fns';
+import { AuthContext } from '../../context/AuthContext';
+import api from '../../services/api';
 
 const Dashboard = () => {
-    const { user } = useAuth();
+    const { currentUser } = useContext(AuthContext);
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
-    const [meetings, setMeetings] = useState([]);
+    const [error, setError] = useState(null);
+    const [upcomingMeetings, setUpcomingMeetings] = useState([]);
     const [calendars, setCalendars] = useState([]);
     const [teams, setTeams] = useState([]);
-    const [error, setError] = useState(null);
 
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchDashboardData = async () => {
+            setLoading(true);
             try {
-                setLoading(true);
-
                 // Fetch upcoming meetings
-                const meetingsResponse = await meetingAPI.getMeetings();
-                setMeetings(meetingsResponse.data.slice(0, 5)); // Get only 5 most recent
+                const meetingsResponse = await api.get('/api/meetings/?upcoming=true&limit=5');
+                setUpcomingMeetings(meetingsResponse.data);
 
                 // Fetch calendars
-                const calendarsResponse = await calendarAPI.getCalendars();
+                const calendarsResponse = await api.get('/api/calendars/');
                 setCalendars(calendarsResponse.data);
 
                 // Fetch teams
-                const teamsResponse = await teamAPI.getTeams();
+                const teamsResponse = await api.get('/api/teams/');
                 setTeams(teamsResponse.data);
 
-                setLoading(false);
+                setError(null);
             } catch (err) {
                 console.error('Error fetching dashboard data:', err);
                 setError('Failed to load dashboard data. Please try again later.');
+            } finally {
                 setLoading(false);
             }
         };
 
-        fetchData();
+        fetchDashboardData();
     }, []);
+
+    const formatMeetingDate = (dateString) => {
+        const date = parseISO(dateString);
+
+        if (isToday(date)) {
+            return `Today at ${format(date, 'h:mm a')}`;
+        } else if (isTomorrow(date)) {
+            return `Tomorrow at ${format(date, 'h:mm a')}`;
+        } else if (date < addDays(new Date(), 7)) {
+            return format(date, 'EEEE') + ` at ${format(date, 'h:mm a')}`;
+        } else {
+            return format(date, 'MMM d') + ` at ${format(date, 'h:mm a')}`;
+        }
+    };
 
     if (loading) {
         return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-                <CircularProgress />
-            </Box>
+            <Container maxWidth="xl">
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+                    <CircularProgress />
+                </Box>
+            </Container>
         );
     }
 
     return (
-        <Box>
-            <Typography variant="h4" component="h1" gutterBottom>
-                Welcome, {user?.name || 'User'}!
-            </Typography>
+        <Container maxWidth="xl">
+            <Box sx={{ mt: 4, mb: 4 }}>
+                <Typography variant="h4" component="h1" gutterBottom>
+                    Welcome, {currentUser?.name || 'User'}!
+                </Typography>
 
-            <Grid container spacing={3}>
-                {/* Quick Stats */}
-                <Grid item xs={12} md={4}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                <CalendarIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                                Calendars
-                            </Typography>
-                            <Typography variant="h3" align="center" sx={{ my: 2 }}>
-                                {calendars.length}
-                            </Typography>
-                        </CardContent>
-                        <Divider />
-                        <CardActions>
-                            <Button size="small" onClick={() => navigate('/calendars')}>
-                                Manage Calendars
-                            </Button>
-                        </CardActions>
-                    </Card>
-                </Grid>
+                {error && (
+                    <Alert severity="error" sx={{ mb: 3 }}>
+                        {error}
+                    </Alert>
+                )}
 
-                <Grid item xs={12} md={4}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                <EventIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                                Upcoming Meetings
-                            </Typography>
-                            <Typography variant="h3" align="center" sx={{ my: 2 }}>
-                                {meetings.length}
-                            </Typography>
-                        </CardContent>
-                        <Divider />
-                        <CardActions>
-                            <Button size="small" onClick={() => navigate('/meetings')}>
-                                View All Meetings
-                            </Button>
-                        </CardActions>
-                    </Card>
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                    <Card>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                <GroupIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                                Teams
-                            </Typography>
-                            <Typography variant="h3" align="center" sx={{ my: 2 }}>
-                                {teams.length}
-                            </Typography>
-                        </CardContent>
-                        <Divider />
-                        <CardActions>
-                            <Button size="small" onClick={() => navigate('/teams')}>
-                                Manage Teams
-                            </Button>
-                        </CardActions>
-                    </Card>
-                </Grid>
-
-                {/* Upcoming Meetings */}
-                <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 2 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Upcoming Meetings
-                        </Typography>
-                        <Divider sx={{ mb: 2 }} />
-
-                        {meetings.length === 0 ? (
-                            <Typography variant="body1" sx={{ py: 2, textAlign: 'center' }}>
-                                No upcoming meetings
-                            </Typography>
-                        ) : (
-                            <List>
-                                {meetings.map((meeting) => (
-                                    <ListItem key={meeting.id} alignItems="flex-start" sx={{ borderBottom: '1px solid #eee' }}>
-                                        <ListItemAvatar>
-                                            <Avatar sx={{ bgcolor: 'primary.main' }}>
-                                                <EventIcon />
-                                            </Avatar>
-                                        </ListItemAvatar>
-                                        <ListItemText
-                                            primary={meeting.title}
-                                            secondary={
-                                                <>
-                                                    <Typography component="span" variant="body2" color="text.primary">
-                                                        {format(new Date(meeting.start_time), 'MMM dd, yyyy • h:mm a')}
-                                                    </Typography>
-                                                    {" — "}
-                                                    {meeting.meeting_type === 'virtual' ? 'Virtual Meeting' : 'In-Person Meeting'}
-                                                </>
-                                            }
-                                        />
-                                    </ListItem>
-                                ))}
-                            </List>
-                        )}
-
-                        <Box sx={{ mt: 2, textAlign: 'center' }}>
-                            <Button variant="contained" onClick={() => navigate('/meetings')}>
-                                View All Meetings
-                            </Button>
-                        </Box>
-                    </Paper>
-                </Grid>
-
-                {/* Availability */}
-                <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 2 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Your Availability
-                        </Typography>
-                        <Divider sx={{ mb: 2 }} />
-
-                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-                            <Box sx={{ textAlign: 'center' }}>
-                                <AccessTimeIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-                                <Typography variant="body1" gutterBottom>
-                                    Set your availability to let others know when you're free
+                <Grid container spacing={3}>
+                    {/* Upcoming Meetings */}
+                    <Grid item xs={12} md={8}>
+                        <Paper sx={{ p: 3, height: '100%' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                <Typography variant="h6" component="h2">
+                                    Upcoming Meetings
                                 </Typography>
                                 <Button
-                                    variant="contained"
-                                    onClick={() => navigate('/availability')}
-                                    sx={{ mt: 2 }}
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<AddIcon />}
+                                    onClick={() => navigate('/meetings')}
                                 >
-                                    Manage Availability
+                                    New Meeting
                                 </Button>
                             </Box>
-                        </Box>
-                    </Paper>
-                </Grid>
 
-                {/* Quick Actions */}
-                <Grid item xs={12}>
-                    <Paper sx={{ p: 2 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Quick Actions
-                        </Typography>
-                        <Divider sx={{ mb: 2 }} />
+                            {upcomingMeetings.length === 0 ? (
+                                <Alert severity="info">
+                                    You don't have any upcoming meetings. Click "New Meeting" to schedule one.
+                                </Alert>
+                            ) : (
+                                <List>
+                                    {upcomingMeetings.map((meeting, index) => (
+                                        <React.Fragment key={meeting.id}>
+                                            <ListItem alignItems="flex-start">
+                                                <ListItemText
+                                                    primary={
+                                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                            <Typography variant="subtitle1" component="span">
+                                                                {meeting.title}
+                                                            </Typography>
+                                                            {meeting.team_id && (
+                                                                <Chip
+                                                                    size="small"
+                                                                    label={meeting.team_name || 'Team'}
+                                                                    sx={{ ml: 1 }}
+                                                                    color="primary"
+                                                                    variant="outlined"
+                                                                />
+                                                            )}
+                                                        </Box>
+                                                    }
+                                                    secondary={
+                                                        <>
+                                                            <Typography
+                                                                component="span"
+                                                                variant="body2"
+                                                                color="text.primary"
+                                                                sx={{ display: 'block' }}
+                                                            >
+                                                                {formatMeetingDate(meeting.start_time)}
+                                                            </Typography>
+                                                            {meeting.description && (
+                                                                <Typography
+                                                                    component="span"
+                                                                    variant="body2"
+                                                                    color="text.secondary"
+                                                                >
+                                                                    {meeting.description.length > 100
+                                                                        ? `${meeting.description.substring(0, 100)}...`
+                                                                        : meeting.description}
+                                                                </Typography>
+                                                            )}
+                                                        </>
+                                                    }
+                                                />
+                                            </ListItem>
+                                            {index < upcomingMeetings.length - 1 && <Divider component="li" />}
+                                        </React.Fragment>
+                                    ))}
+                                </List>
+                            )}
+                        </Paper>
+                    </Grid>
 
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6} md={3}>
-                                <Button
-                                    variant="outlined"
-                                    fullWidth
-                                    startIcon={<EventIcon />}
-                                    onClick={() => navigate('/meetings')}
-                                    sx={{ py: 1.5 }}
-                                >
-                                    Create Meeting
-                                </Button>
+                    {/* Quick Actions */}
+                    <Grid item xs={12} md={4}>
+                        <Grid container spacing={2} direction="column">
+                            <Grid item>
+                                <Paper sx={{ p: 2 }}>
+                                    <Typography variant="h6" component="h2" gutterBottom>
+                                        Quick Actions
+                                    </Typography>
+                                    <Grid container spacing={1}>
+                                        <Grid item xs={6}>
+                                            <Button
+                                                variant="outlined"
+                                                fullWidth
+                                                startIcon={<CalendarIcon />}
+                                                onClick={() => navigate('/calendars')}
+                                                sx={{ justifyContent: 'flex-start' }}
+                                            >
+                                                Calendars
+                                            </Button>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Button
+                                                variant="outlined"
+                                                fullWidth
+                                                startIcon={<AccessTimeIcon />}
+                                                onClick={() => navigate('/availability')}
+                                                sx={{ justifyContent: 'flex-start' }}
+                                            >
+                                                Availability
+                                            </Button>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Button
+                                                variant="outlined"
+                                                fullWidth
+                                                startIcon={<EventIcon />}
+                                                onClick={() => navigate('/meetings')}
+                                                sx={{ justifyContent: 'flex-start' }}
+                                            >
+                                                Meetings
+                                            </Button>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Button
+                                                variant="outlined"
+                                                fullWidth
+                                                startIcon={<GroupIcon />}
+                                                onClick={() => navigate('/teams')}
+                                                sx={{ justifyContent: 'flex-start' }}
+                                            >
+                                                Teams
+                                            </Button>
+                                        </Grid>
+                                    </Grid>
+                                </Paper>
                             </Grid>
-                            <Grid item xs={12} sm={6} md={3}>
-                                <Button
-                                    variant="outlined"
-                                    fullWidth
-                                    startIcon={<CalendarIcon />}
-                                    onClick={() => navigate('/calendars')}
-                                    sx={{ py: 1.5 }}
-                                >
-                                    Add Calendar
-                                </Button>
+
+                            {/* Calendars */}
+                            <Grid item>
+                                <Card>
+                                    <CardContent>
+                                        <Typography variant="h6" component="h2" gutterBottom>
+                                            Your Calendars
+                                        </Typography>
+                                        {calendars.length === 0 ? (
+                                            <Typography variant="body2" color="text.secondary">
+                                                You haven't connected any calendars yet.
+                                            </Typography>
+                                        ) : (
+                                            <List dense>
+                                                {calendars.slice(0, 3).map((calendar) => (
+                                                    <ListItem key={calendar.id} disablePadding sx={{ py: 0.5 }}>
+                                                        <Box
+                                                            sx={{
+                                                                width: 12,
+                                                                height: 12,
+                                                                borderRadius: '50%',
+                                                                bgcolor: calendar.color || '#3174ad',
+                                                                mr: 1.5
+                                                            }}
+                                                        />
+                                                        <ListItemText
+                                                            primary={calendar.name}
+                                                            secondary={calendar.calendar_type}
+                                                        />
+                                                    </ListItem>
+                                                ))}
+                                                {calendars.length > 3 && (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ pl: 1 }}>
+                                                        +{calendars.length - 3} more calendars
+                                                    </Typography>
+                                                )}
+                                            </List>
+                                        )}
+                                    </CardContent>
+                                    <CardActions>
+                                        <Button size="small" onClick={() => navigate('/calendars')}>
+                                            {calendars.length === 0 ? 'Connect Calendar' : 'Manage Calendars'}
+                                        </Button>
+                                    </CardActions>
+                                </Card>
                             </Grid>
-                            <Grid item xs={12} sm={6} md={3}>
-                                <Button
-                                    variant="outlined"
-                                    fullWidth
-                                    startIcon={<GroupIcon />}
-                                    onClick={() => navigate('/teams')}
-                                    sx={{ py: 1.5 }}
-                                >
-                                    Create Team
-                                </Button>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={3}>
-                                <Button
-                                    variant="outlined"
-                                    fullWidth
-                                    startIcon={<AccessTimeIcon />}
-                                    onClick={() => navigate('/availability')}
-                                    sx={{ py: 1.5 }}
-                                >
-                                    Set Availability
-                                </Button>
+
+                            {/* Teams */}
+                            <Grid item>
+                                <Card>
+                                    <CardContent>
+                                        <Typography variant="h6" component="h2" gutterBottom>
+                                            Your Teams
+                                        </Typography>
+                                        {teams.length === 0 ? (
+                                            <Typography variant="body2" color="text.secondary">
+                                                You're not a member of any teams yet.
+                                            </Typography>
+                                        ) : (
+                                            <List dense>
+                                                {teams.slice(0, 3).map((team) => (
+                                                    <ListItem key={team.id} disablePadding sx={{ py: 0.5 }}>
+                                                        <ListItemText
+                                                            primary={team.name}
+                                                            secondary={`${team.member_count || 0} members`}
+                                                        />
+                                                    </ListItem>
+                                                ))}
+                                                {teams.length > 3 && (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ pl: 1 }}>
+                                                        +{teams.length - 3} more teams
+                                                    </Typography>
+                                                )}
+                                            </List>
+                                        )}
+                                    </CardContent>
+                                    <CardActions>
+                                        <Button size="small" onClick={() => navigate('/teams')}>
+                                            {teams.length === 0 ? 'Create Team' : 'Manage Teams'}
+                                        </Button>
+                                    </CardActions>
+                                </Card>
                             </Grid>
                         </Grid>
-                    </Paper>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Box>
+            </Box>
+        </Container>
     );
 };
 

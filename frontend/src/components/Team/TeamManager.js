@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
+    Box,
     Paper,
     Typography,
-    Box,
     Button,
     List,
     ListItem,
@@ -15,84 +15,65 @@ import {
     DialogActions,
     TextField,
     CircularProgress,
+    Alert,
     Divider,
     Chip,
-    Avatar,
-    Autocomplete,
-    Alert,
-    Snackbar,
-    Tooltip
+    Grid
 } from '@mui/material';
-import {
-    Add as AddIcon,
-    Delete as DeleteIcon,
-    Edit as EditIcon,
-    Group as GroupIcon,
-    PersonAdd as PersonAddIcon
-} from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import GroupIcon from '@mui/icons-material/Group';
+import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 
 const TeamManager = () => {
-    const { currentUser } = useAuth();
+    const { currentUser } = useContext(AuthContext);
+    const navigate = useNavigate();
     const [teams, setTeams] = useState([]);
-    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [openDialog, setOpenDialog] = useState(false);
-    const [openMemberDialog, setOpenMemberDialog] = useState(false);
-    const [editTeamId, setEditTeamId] = useState(null);
-    const [currentTeam, setCurrentTeam] = useState(null);
-    const [teamData, setTeamData] = useState({
+    const [selectedTeam, setSelectedTeam] = useState(null);
+
+    const [formData, setFormData] = useState({
         name: '',
-        member_ids: []
-    });
-    const [selectedMembers, setSelectedMembers] = useState([]);
-    const [snackbar, setSnackbar] = useState({
-        open: false,
-        message: '',
-        severity: 'success'
+        description: ''
     });
 
     useEffect(() => {
         fetchTeams();
-        fetchUsers();
     }, []);
 
     const fetchTeams = async () => {
         setLoading(true);
         try {
-            const response = await api.get('/teams/');
+            const response = await api.get('/api/teams/');
             setTeams(response.data);
-        } catch (error) {
-            console.error('Error fetching teams:', error);
-            showSnackbar('Failed to load teams', 'error');
+            setError(null);
+        } catch (err) {
+            console.error('Error fetching teams:', err);
+            setError('Failed to load your teams. Please try again later.');
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchUsers = async () => {
-        try {
-            const response = await api.get('/users/');
-            setUsers(response.data);
-        } catch (error) {
-            console.error('Error fetching users:', error);
-            showSnackbar('Failed to load users', 'error');
-        }
-    };
-
     const handleOpenDialog = (team = null) => {
         if (team) {
-            setEditTeamId(team.id);
-            setTeamData({
+            // Edit mode
+            setSelectedTeam(team);
+            setFormData({
                 name: team.name,
-                member_ids: team.members?.map(member => member.id) || []
+                description: team.description || ''
             });
         } else {
-            setEditTeamId(null);
-            setTeamData({
+            // Create mode
+            setSelectedTeam(null);
+            setFormData({
                 name: '',
-                member_ids: []
+                description: ''
             });
         }
         setOpenDialog(true);
@@ -102,108 +83,64 @@ const TeamManager = () => {
         setOpenDialog(false);
     };
 
-    const handleOpenMemberDialog = (team) => {
-        setCurrentTeam(team);
-        setSelectedMembers(
-            users.filter(user =>
-                team.members?.some(member => member.id === user.id)
-            )
-        );
-        setOpenMemberDialog(true);
-    };
-
-    const handleCloseMemberDialog = () => {
-        setOpenMemberDialog(false);
-        setCurrentTeam(null);
-        setSelectedMembers([]);
-    };
-
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setTeamData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
-
-    const handleSubmit = async () => {
-        try {
-            if (editTeamId) {
-                // Update existing team
-                await api.put(`/teams/${editTeamId}`, teamData);
-                showSnackbar('Team updated successfully');
-            } else {
-                // Create new team
-                await api.post('/teams/', teamData);
-                showSnackbar('Team created successfully');
-            }
-
-            fetchTeams();
-            handleCloseDialog();
-        } catch (error) {
-            console.error('Error saving team:', error);
-            showSnackbar('Failed to save team', 'error');
-        }
-    };
-
-    const handleUpdateMembers = async () => {
-        if (!currentTeam) return;
-
-        try {
-            const memberIds = selectedMembers.map(member => member.id);
-            await api.put(`/teams/${currentTeam.id}`, {
-                member_ids: memberIds
-            });
-
-            showSnackbar('Team members updated successfully');
-            fetchTeams();
-            handleCloseMemberDialog();
-        } catch (error) {
-            console.error('Error updating team members:', error);
-            showSnackbar('Failed to update team members', 'error');
-        }
-    };
-
-    const handleDeleteTeam = async (id) => {
-        if (window.confirm('Are you sure you want to delete this team?')) {
-            try {
-                await api.delete(`/teams/${id}`);
-                showSnackbar('Team deleted successfully');
-                fetchTeams();
-            } catch (error) {
-                console.error('Error deleting team:', error);
-                showSnackbar('Failed to delete team', 'error');
-            }
-        }
-    };
-
-    const showSnackbar = (message, severity = 'success') => {
-        setSnackbar({
-            open: true,
-            message,
-            severity
+    const handleInputChange = (field, value) => {
+        setFormData({
+            ...formData,
+            [field]: value
         });
     };
 
-    const handleCloseSnackbar = () => {
-        setSnackbar(prev => ({
-            ...prev,
-            open: false
-        }));
+    const handleSubmit = async () => {
+        // Validate form
+        if (!formData.name) {
+            setError('Please enter a team name');
+            return;
+        }
+
+        try {
+            if (selectedTeam) {
+                // Update existing team
+                await api.put(`/api/teams/${selectedTeam.id}`, formData);
+            } else {
+                // Create new team
+                await api.post('/api/teams/', formData);
+            }
+
+            // Refresh the list
+            fetchTeams();
+            handleCloseDialog();
+            setError(null);
+        } catch (err) {
+            console.error('Error saving team:', err);
+            setError('Failed to save team. Please try again.');
+        }
     };
 
-    const getInitials = (name) => {
-        return name
-            .split(' ')
-            .map(part => part[0])
-            .join('')
-            .toUpperCase();
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this team? This action cannot be undone.')) {
+            try {
+                await api.delete(`/api/teams/${id}`);
+                fetchTeams();
+            } catch (err) {
+                console.error('Error deleting team:', err);
+                setError('Failed to delete team. Please try again.');
+            }
+        }
+    };
+
+    const handleViewTeam = (teamId) => {
+        navigate(`/teams/${teamId}`);
     };
 
     return (
-        <Paper elevation={3} sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h5">Team Management</Typography>
+        <Box>
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+            )}
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
                 <Button
                     variant="contained"
                     startIcon={<AddIcon />}
@@ -213,164 +150,114 @@ const TeamManager = () => {
                 </Button>
             </Box>
 
-            <Divider sx={{ mb: 2 }} />
-
             {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                     <CircularProgress />
                 </Box>
             ) : teams.length === 0 ? (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                    You haven't created any teams yet. Click "Create Team" to get started.
-                </Alert>
+                <Paper sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography variant="body1">
+                        You haven't created any teams yet. Click the "Create Team" button to get started.
+                    </Typography>
+                </Paper>
             ) : (
-                <List>
+                <Grid container spacing={2}>
                     {teams.map((team) => (
-                        <ListItem key={team.id} divider>
-                            <ListItemText
-                                primary={
-                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <GroupIcon sx={{ mr: 1 }} />
-                                        <Typography variant="h6">{team.name}</Typography>
+                        <Grid item xs={12} md={6} lg={4} key={team.id}>
+                            <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                                    <Typography variant="h6" noWrap>{team.name}</Typography>
+                                    <Box>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => handleOpenDialog(team)}
+                                            aria-label="edit"
+                                        >
+                                            <EditIcon fontSize="small" />
+                                        </IconButton>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => handleDelete(team.id)}
+                                            aria-label="delete"
+                                        >
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
                                     </Box>
-                                }
-                                secondary={
-                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-                                        {team.members?.length > 0 ? (
-                                            team.members.map(member => (
-                                                <Chip
-                                                    key={member.id}
-                                                    avatar={<Avatar>{getInitials(member.name)}</Avatar>}
-                                                    label={member.name}
-                                                    variant="outlined"
-                                                    size="small"
-                                                />
-                                            ))
-                                        ) : (
-                                            <Typography variant="body2" color="text.secondary">
-                                                No members
-                                            </Typography>
-                                        )}
-                                    </Box>
-                                }
-                            />
-                            <ListItemSecondaryAction>
-                                <Tooltip title="Manage Members">
-                                    <IconButton edge="end" onClick={() => handleOpenMemberDialog(team)}>
-                                        <PersonAddIcon />
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Edit Team">
-                                    <IconButton edge="end" onClick={() => handleOpenDialog(team)}>
-                                        <EditIcon />
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete Team">
-                                    <IconButton edge="end" onClick={() => handleDeleteTeam(team.id)}>
-                                        <DeleteIcon />
-                                    </IconButton>
-                                </Tooltip>
-                            </ListItemSecondaryAction>
-                        </ListItem>
+                                </Box>
+
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                    sx={{
+                                        mb: 2,
+                                        flexGrow: 1,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 3,
+                                        WebkitBoxOrient: 'vertical',
+                                    }}
+                                >
+                                    {team.description || 'No description provided.'}
+                                </Typography>
+
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <Chip
+                                        icon={<GroupIcon />}
+                                        label={`${team.member_count || 0} members`}
+                                        size="small"
+                                        variant="outlined"
+                                    />
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={() => handleViewTeam(team.id)}
+                                    >
+                                        View Details
+                                    </Button>
+                                </Box>
+                            </Paper>
+                        </Grid>
                     ))}
-                </List>
+                </Grid>
             )}
 
             {/* Add/Edit Team Dialog */}
             <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-                <DialogTitle>{editTeamId ? 'Edit Team' : 'Create Team'}</DialogTitle>
+                <DialogTitle>
+                    {selectedTeam ? 'Edit Team' : 'Create New Team'}
+                </DialogTitle>
                 <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        name="name"
-                        label="Team Name"
-                        type="text"
-                        fullWidth
-                        variant="outlined"
-                        value={teamData.name}
-                        onChange={handleInputChange}
-                        sx={{ mb: 2 }}
-                    />
+                    <Box sx={{ mt: 1 }}>
+                        <TextField
+                            label="Team Name"
+                            value={formData.name}
+                            onChange={(e) => handleInputChange('name', e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            required
+                        />
+
+                        <TextField
+                            label="Description"
+                            value={formData.description}
+                            onChange={(e) => handleInputChange('description', e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            multiline
+                            rows={4}
+                            placeholder="Describe the purpose of this team..."
+                        />
+                    </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDialog}>Cancel</Button>
-                    <Button onClick={handleSubmit} variant="contained" color="primary">
-                        {editTeamId ? 'Update' : 'Create'}
+                    <Button onClick={handleSubmit} variant="contained">
+                        {selectedTeam ? 'Update' : 'Create'}
                     </Button>
                 </DialogActions>
             </Dialog>
-
-            {/* Manage Team Members Dialog */}
-            <Dialog open={openMemberDialog} onClose={handleCloseMemberDialog} maxWidth="sm" fullWidth>
-                <DialogTitle>Manage Team Members</DialogTitle>
-                <DialogContent>
-                    {currentTeam && (
-                        <>
-                            <Typography variant="subtitle1" gutterBottom>
-                                Team: {currentTeam.name}
-                            </Typography>
-                            <Autocomplete
-                                multiple
-                                id="team-members"
-                                options={users}
-                                value={selectedMembers}
-                                onChange={(event, newValue) => {
-                                    setSelectedMembers(newValue);
-                                }}
-                                getOptionLabel={(option) => option.name}
-                                renderInput={(params) => (
-                                    <TextField
-                                        {...params}
-                                        variant="outlined"
-                                        label="Select Members"
-                                        placeholder="Search users"
-                                    />
-                                )}
-                                renderTags={(value, getTagProps) =>
-                                    value.map((option, index) => (
-                                        <Chip
-                                            avatar={<Avatar>{getInitials(option.name)}</Avatar>}
-                                            label={option.name}
-                                            {...getTagProps({ index })}
-                                        />
-                                    ))
-                                }
-                                renderOption={(props, option) => (
-                                    <li {...props}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <Avatar sx={{ mr: 1, width: 24, height: 24 }}>
-                                                {getInitials(option.name)}
-                                            </Avatar>
-                                            <Typography variant="body2">{option.name}</Typography>
-                                        </Box>
-                                    </li>
-                                )}
-                                sx={{ mt: 2 }}
-                            />
-                        </>
-                    )}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseMemberDialog}>Cancel</Button>
-                    <Button onClick={handleUpdateMembers} variant="contained" color="primary">
-                        Save Changes
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Snackbar for notifications */}
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={6000}
-                onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            >
-                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
-        </Paper>
+        </Box>
     );
 };
 

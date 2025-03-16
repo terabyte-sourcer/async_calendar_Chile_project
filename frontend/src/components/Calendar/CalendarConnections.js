@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
+    Box,
     Paper,
     Typography,
-    Box,
     Button,
     List,
     ListItem,
@@ -14,58 +14,45 @@ import {
     DialogContent,
     DialogActions,
     TextField,
+    FormControl,
+    InputLabel,
+    Select,
     MenuItem,
     CircularProgress,
-    Divider,
-    Tooltip,
     Alert,
-    Snackbar
+    Divider,
+    Chip
 } from '@mui/material';
-import {
-    Add as AddIcon,
-    Delete as DeleteIcon,
-    Refresh as RefreshIcon,
-    Edit as EditIcon
-} from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import SyncIcon from '@mui/icons-material/Sync';
+import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 
+const CALENDAR_TYPES = [
+    { value: 'google', label: 'Google Calendar' },
+    { value: 'outlook', label: 'Microsoft Outlook' },
+    { value: 'caldav', label: 'CalDAV' }
+];
+
 const CalendarConnections = () => {
-    const { currentUser } = useAuth();
+    const { currentUser } = useContext(AuthContext);
     const [calendars, setCalendars] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [openDialog, setOpenDialog] = useState(false);
-    const [editCalendarId, setEditCalendarId] = useState(null);
-    const [calendarData, setCalendarData] = useState({
-        name: '',
-        provider: 'google',
-        color: '#1976d2'
-    });
+    const [openAuthDialog, setOpenAuthDialog] = useState(false);
+    const [selectedCalendar, setSelectedCalendar] = useState(null);
+    const [authUrl, setAuthUrl] = useState('');
+    const [authCode, setAuthCode] = useState('');
     const [syncingCalendar, setSyncingCalendar] = useState(null);
-    const [snackbar, setSnackbar] = useState({
-        open: false,
-        message: '',
-        severity: 'success'
+
+    const [formData, setFormData] = useState({
+        name: '',
+        calendar_type: '',
+        color: '#3174ad'
     });
-
-    const providers = [
-        { value: 'google', label: 'Google Calendar' },
-        { value: 'outlook', label: 'Microsoft Outlook' },
-        { value: 'caldav', label: 'CalDAV' }
-    ];
-
-    const colors = [
-        '#1976d2', // Blue
-        '#2e7d32', // Green
-        '#c62828', // Red
-        '#f57c00', // Orange
-        '#6a1b9a', // Purple
-        '#00838f', // Teal
-        '#558b2f', // Light Green
-        '#d81b60', // Pink
-        '#4527a0', // Deep Purple
-        '#00695c'  // Dark Teal
-    ];
 
     useEffect(() => {
         fetchCalendars();
@@ -74,11 +61,12 @@ const CalendarConnections = () => {
     const fetchCalendars = async () => {
         setLoading(true);
         try {
-            const response = await api.get('/calendars/');
+            const response = await api.get('/api/calendars/');
             setCalendars(response.data);
-        } catch (error) {
-            console.error('Error fetching calendars:', error);
-            showSnackbar('Failed to load calendars', 'error');
+            setError(null);
+        } catch (err) {
+            console.error('Error fetching calendars:', err);
+            setError('Failed to load your calendars. Please try again later.');
         } finally {
             setLoading(false);
         }
@@ -86,18 +74,20 @@ const CalendarConnections = () => {
 
     const handleOpenDialog = (calendar = null) => {
         if (calendar) {
-            setEditCalendarId(calendar.id);
-            setCalendarData({
+            // Edit mode
+            setSelectedCalendar(calendar);
+            setFormData({
                 name: calendar.name,
-                provider: calendar.provider,
-                color: calendar.color || '#1976d2'
+                calendar_type: calendar.calendar_type,
+                color: calendar.color || '#3174ad'
             });
         } else {
-            setEditCalendarId(null);
-            setCalendarData({
+            // Create mode
+            setSelectedCalendar(null);
+            setFormData({
                 name: '',
-                provider: 'google',
-                color: '#1976d2'
+                calendar_type: '',
+                color: '#3174ad'
             });
         }
         setOpenDialog(true);
@@ -107,231 +97,290 @@ const CalendarConnections = () => {
         setOpenDialog(false);
     };
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setCalendarData(prev => ({
-            ...prev,
-            [name]: value
-        }));
+    const handleInputChange = (field, value) => {
+        setFormData({
+            ...formData,
+            [field]: value
+        });
     };
 
     const handleSubmit = async () => {
+        // Validate form
+        if (!formData.name || !formData.calendar_type) {
+            setError('Please fill in all required fields');
+            return;
+        }
+
         try {
-            if (editCalendarId) {
+            if (selectedCalendar) {
                 // Update existing calendar
-                await api.put(`/calendars/${editCalendarId}`, calendarData);
-                showSnackbar('Calendar updated successfully');
+                await api.put(`/api/calendars/${selectedCalendar.id}`, formData);
             } else {
                 // Create new calendar
-                const response = await api.post('/calendars/', calendarData);
+                const response = await api.post('/api/calendars/', formData);
 
-                // If it's a provider that requires OAuth, redirect to auth URL
+                // If calendar requires authentication, open auth dialog
                 if (response.data.auth_url) {
-                    window.location.href = response.data.auth_url;
+                    setAuthUrl(response.data.auth_url);
+                    setSelectedCalendar(response.data);
+                    handleCloseDialog();
+                    setOpenAuthDialog(true);
                     return;
                 }
-
-                showSnackbar('Calendar created successfully');
             }
 
+            // Refresh the list
             fetchCalendars();
             handleCloseDialog();
-        } catch (error) {
-            console.error('Error saving calendar:', error);
-            showSnackbar('Failed to save calendar', 'error');
+            setError(null);
+        } catch (err) {
+            console.error('Error saving calendar:', err);
+            setError('Failed to save calendar. Please try again.');
         }
     };
 
-    const handleDeleteCalendar = async (id) => {
-        if (window.confirm('Are you sure you want to delete this calendar?')) {
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this calendar? All associated events will also be deleted.')) {
             try {
-                await api.delete(`/calendars/${id}`);
-                showSnackbar('Calendar deleted successfully');
+                await api.delete(`/api/calendars/${id}`);
                 fetchCalendars();
-            } catch (error) {
-                console.error('Error deleting calendar:', error);
-                showSnackbar('Failed to delete calendar', 'error');
+            } catch (err) {
+                console.error('Error deleting calendar:', err);
+                setError('Failed to delete calendar. Please try again.');
             }
         }
     };
 
-    const handleSyncCalendar = async (id) => {
+    const handleAuthSubmit = async () => {
+        if (!authCode || !selectedCalendar) {
+            setError('Please enter the authentication code');
+            return;
+        }
+
+        try {
+            await api.post(`/api/calendars/${selectedCalendar.id}/authenticate`, {
+                auth_code: authCode
+            });
+
+            setOpenAuthDialog(false);
+            setAuthCode('');
+            fetchCalendars();
+        } catch (err) {
+            console.error('Error authenticating calendar:', err);
+            setError('Failed to authenticate calendar. Please check your code and try again.');
+        }
+    };
+
+    const handleSync = async (id) => {
         setSyncingCalendar(id);
         try {
-            await api.post(`/calendars/${id}/sync`);
-            showSnackbar('Calendar synced successfully');
-        } catch (error) {
-            console.error('Error syncing calendar:', error);
-            showSnackbar('Failed to sync calendar', 'error');
+            await api.post(`/api/calendars/${id}/sync`);
+            fetchCalendars();
+        } catch (err) {
+            console.error('Error syncing calendar:', err);
+            setError('Failed to sync calendar. Please try again.');
         } finally {
             setSyncingCalendar(null);
         }
     };
 
-    const showSnackbar = (message, severity = 'success') => {
-        setSnackbar({
-            open: true,
-            message,
-            severity
-        });
-    };
-
-    const handleCloseSnackbar = () => {
-        setSnackbar(prev => ({
-            ...prev,
-            open: false
-        }));
-    };
-
     return (
-        <Paper elevation={3} sx={{ p: 3 }}>
+        <Box>
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+            )}
+
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h5">Calendar Connections</Typography>
+                <Typography variant="h6">Connected Calendars</Typography>
                 <Button
                     variant="contained"
                     startIcon={<AddIcon />}
                     onClick={() => handleOpenDialog()}
                 >
-                    Add Calendar
+                    Connect Calendar
                 </Button>
             </Box>
-
-            <Divider sx={{ mb: 2 }} />
 
             {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                     <CircularProgress />
                 </Box>
             ) : calendars.length === 0 ? (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                    You haven't connected any calendars yet. Click "Add Calendar" to get started.
-                </Alert>
+                <Paper sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography variant="body1">
+                        You haven't connected any calendars yet. Click the "Connect Calendar" button to get started.
+                    </Typography>
+                </Paper>
             ) : (
-                <List>
+                <List component={Paper}>
                     {calendars.map((calendar) => (
-                        <ListItem key={calendar.id} divider>
-                            <Box
-                                sx={{
-                                    width: 16,
-                                    height: 16,
-                                    borderRadius: '50%',
-                                    backgroundColor: calendar.color || '#1976d2',
-                                    mr: 2
-                                }}
-                            />
-                            <ListItemText
-                                primary={calendar.name}
-                                secondary={`Provider: ${providers.find(p => p.value === calendar.provider)?.label || calendar.provider}`}
-                            />
-                            <ListItemSecondaryAction>
-                                <Tooltip title="Sync Calendar">
+                        <React.Fragment key={calendar.id}>
+                            <ListItem>
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Box
+                                        sx={{
+                                            width: 16,
+                                            height: 16,
+                                            borderRadius: '50%',
+                                            bgcolor: calendar.color || '#3174ad',
+                                            mr: 2
+                                        }}
+                                    />
+                                    <ListItemText
+                                        primary={calendar.name}
+                                        secondary={
+                                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                                                <Chip
+                                                    size="small"
+                                                    label={CALENDAR_TYPES.find(t => t.value === calendar.calendar_type)?.label || calendar.calendar_type}
+                                                    sx={{ mr: 1 }}
+                                                />
+                                                {calendar.last_synced && (
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        Last synced: {new Date(calendar.last_synced).toLocaleString()}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        }
+                                    />
+                                </Box>
+                                <ListItemSecondaryAction>
                                     <IconButton
                                         edge="end"
-                                        onClick={() => handleSyncCalendar(calendar.id)}
+                                        onClick={() => handleSync(calendar.id)}
                                         disabled={syncingCalendar === calendar.id}
+                                        aria-label="sync"
                                     >
                                         {syncingCalendar === calendar.id ? (
                                             <CircularProgress size={24} />
                                         ) : (
-                                            <RefreshIcon />
+                                            <SyncIcon />
                                         )}
                                     </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Edit">
-                                    <IconButton edge="end" onClick={() => handleOpenDialog(calendar)}>
+                                    <IconButton
+                                        edge="end"
+                                        onClick={() => handleOpenDialog(calendar)}
+                                        aria-label="edit"
+                                    >
                                         <EditIcon />
                                     </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete">
-                                    <IconButton edge="end" onClick={() => handleDeleteCalendar(calendar.id)}>
+                                    <IconButton
+                                        edge="end"
+                                        onClick={() => handleDelete(calendar.id)}
+                                        aria-label="delete"
+                                    >
                                         <DeleteIcon />
                                     </IconButton>
-                                </Tooltip>
-                            </ListItemSecondaryAction>
-                        </ListItem>
+                                </ListItemSecondaryAction>
+                            </ListItem>
+                            <Divider component="li" />
+                        </React.Fragment>
                     ))}
                 </List>
             )}
 
             {/* Add/Edit Calendar Dialog */}
             <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-                <DialogTitle>{editCalendarId ? 'Edit Calendar' : 'Add Calendar'}</DialogTitle>
+                <DialogTitle>
+                    {selectedCalendar ? 'Edit Calendar' : 'Connect New Calendar'}
+                </DialogTitle>
                 <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        name="name"
-                        label="Calendar Name"
-                        type="text"
-                        fullWidth
-                        variant="outlined"
-                        value={calendarData.name}
-                        onChange={handleInputChange}
-                        sx={{ mb: 2 }}
-                    />
+                    <Box sx={{ mt: 1 }}>
+                        <TextField
+                            label="Calendar Name"
+                            value={formData.name}
+                            onChange={(e) => handleInputChange('name', e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            required
+                        />
 
-                    <TextField
-                        select
-                        margin="dense"
-                        name="provider"
-                        label="Calendar Provider"
-                        fullWidth
-                        variant="outlined"
-                        value={calendarData.provider}
-                        onChange={handleInputChange}
-                        sx={{ mb: 2 }}
-                        disabled={editCalendarId !== null}
-                    >
-                        {providers.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                            </MenuItem>
-                        ))}
-                    </TextField>
+                        <FormControl fullWidth margin="normal" required>
+                            <InputLabel id="calendar-type-label">Calendar Type</InputLabel>
+                            <Select
+                                labelId="calendar-type-label"
+                                value={formData.calendar_type}
+                                label="Calendar Type"
+                                onChange={(e) => handleInputChange('calendar_type', e.target.value)}
+                                disabled={selectedCalendar !== null} // Can't change type after creation
+                            >
+                                {CALENDAR_TYPES.map(type => (
+                                    <MenuItem key={type.value} value={type.value}>{type.label}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
 
-                    <Typography variant="subtitle2" gutterBottom>
-                        Calendar Color
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                        {colors.map((color) => (
-                            <Box
-                                key={color}
-                                onClick={() => setCalendarData(prev => ({ ...prev, color }))}
-                                sx={{
-                                    width: 36,
-                                    height: 36,
-                                    backgroundColor: color,
-                                    borderRadius: '50%',
-                                    cursor: 'pointer',
-                                    border: calendarData.color === color ? '2px solid #000' : 'none',
-                                    '&:hover': {
-                                        opacity: 0.8
-                                    }
-                                }}
-                            />
-                        ))}
+                        <TextField
+                            label="Calendar Color"
+                            type="color"
+                            value={formData.color}
+                            onChange={(e) => handleInputChange('color', e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            sx={{ mt: 2 }}
+                        />
                     </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDialog}>Cancel</Button>
-                    <Button onClick={handleSubmit} variant="contained" color="primary">
-                        {editCalendarId ? 'Update' : 'Add'}
+                    <Button onClick={handleSubmit} variant="contained">
+                        {selectedCalendar ? 'Update' : 'Connect'}
                     </Button>
                 </DialogActions>
             </Dialog>
 
-            {/* Snackbar for notifications */}
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={6000}
-                onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            >
-                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
-        </Paper>
+            {/* Authentication Dialog */}
+            <Dialog open={openAuthDialog} maxWidth="md" fullWidth>
+                <DialogTitle>Authenticate Calendar</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ mt: 1 }}>
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                            Please click the link below to authorize access to your calendar, then enter the provided code.
+                        </Alert>
+
+                        <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle1" gutterBottom>
+                                Authorization Link:
+                            </Typography>
+                            <Box
+                                component="a"
+                                href={authUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                sx={{
+                                    display: 'block',
+                                    p: 2,
+                                    bgcolor: 'background.paper',
+                                    borderRadius: 1,
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    wordBreak: 'break-all'
+                                }}
+                            >
+                                {authUrl}
+                            </Box>
+                        </Box>
+
+                        <TextField
+                            label="Authorization Code"
+                            value={authCode}
+                            onChange={(e) => setAuthCode(e.target.value)}
+                            fullWidth
+                            margin="normal"
+                            required
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenAuthDialog(false)}>Cancel</Button>
+                    <Button onClick={handleAuthSubmit} variant="contained">
+                        Submit
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Box>
     );
 };
 

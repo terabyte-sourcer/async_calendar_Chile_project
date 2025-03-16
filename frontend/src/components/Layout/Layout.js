@@ -1,51 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-    AppBar,
     Box,
-    CssBaseline,
-    Divider,
-    Drawer,
-    IconButton,
-    List,
-    ListItem,
-    ListItemButton,
-    ListItemIcon,
-    ListItemText,
+    AppBar,
     Toolbar,
     Typography,
+    Drawer,
+    List,
+    ListItem,
+    ListItemIcon,
+    ListItemText,
+    IconButton,
+    Divider,
     Avatar,
     Menu,
     MenuItem,
+    Tooltip,
+    useMediaQuery,
+    useTheme
 } from '@mui/material';
-import {
-    Menu as MenuIcon,
-    Dashboard as DashboardIcon,
-    Event as EventIcon,
-    AccessTime as AccessTimeIcon,
-    Group as GroupIcon,
-    CalendarMonth as CalendarIcon,
-    AdminPanelSettings as AdminIcon,
-    AccountCircle as AccountIcon,
-    Logout as LogoutIcon,
-} from '@mui/icons-material';
-import { useAuth } from '../../utils/AuthContext';
-import { UserRole } from '../../utils/constants';
+import MenuIcon from '@mui/icons-material/Menu';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import EventIcon from '@mui/icons-material/Event';
+import GroupIcon from '@mui/icons-material/Group';
+import PersonIcon from '@mui/icons-material/Person';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import LogoutIcon from '@mui/icons-material/Logout';
+import { AuthContext } from '../../context/AuthContext';
 
 const drawerWidth = 240;
 
 const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-    { text: 'Calendars', icon: <CalendarIcon />, path: '/calendars' },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: 'Calendars', icon: <CalendarMonthIcon />, path: '/calendars' },
     { text: 'Availability', icon: <AccessTimeIcon />, path: '/availability' },
     { text: 'Meetings', icon: <EventIcon />, path: '/meetings' },
     { text: 'Teams', icon: <GroupIcon />, path: '/teams' },
 ];
 
 const Layout = () => {
-    const { user, logout } = useAuth();
+    const { currentUser, logout } = useContext(AuthContext);
     const navigate = useNavigate();
     const location = useLocation();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
 
@@ -61,56 +62,76 @@ const Layout = () => {
         setAnchorEl(null);
     };
 
+    const handleNavigate = (path) => {
+        navigate(path);
+        if (isMobile) {
+            setMobileOpen(false);
+        }
+    };
+
     const handleLogout = () => {
         handleProfileMenuClose();
         logout();
-        navigate('/login');
     };
 
-    const handleProfileClick = () => {
-        handleProfileMenuClose();
-        navigate('/profile');
+    const getInitials = (name) => {
+        if (!name) return 'U';
+        return name
+            .split(' ')
+            .map(part => part[0])
+            .join('')
+            .toUpperCase();
     };
 
     const drawer = (
         <div>
             <Toolbar sx={{ justifyContent: 'center' }}>
-                <Typography variant="h6" noWrap component="div" sx={{ color: 'primary.main' }}>
+                <Typography variant="h6" noWrap component="div">
                     Async Calendar
                 </Typography>
             </Toolbar>
             <Divider />
             <List>
                 {menuItems.map((item) => (
-                    <ListItem key={item.text} disablePadding>
-                        <ListItemButton
-                            selected={location.pathname === item.path}
-                            onClick={() => {
-                                navigate(item.path);
-                                setMobileOpen(false);
-                            }}
-                        >
-                            <ListItemIcon sx={{ color: location.pathname === item.path ? 'primary.main' : 'inherit' }}>
-                                {item.icon}
-                            </ListItemIcon>
-                            <ListItemText primary={item.text} />
-                        </ListItemButton>
+                    <ListItem
+                        button
+                        key={item.text}
+                        onClick={() => handleNavigate(item.path)}
+                        selected={location.pathname === item.path}
+                        sx={{
+                            '&.Mui-selected': {
+                                backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                                '&:hover': {
+                                    backgroundColor: 'rgba(25, 118, 210, 0.12)',
+                                },
+                            },
+                        }}
+                    >
+                        <ListItemIcon sx={{ color: location.pathname === item.path ? 'primary.main' : 'inherit' }}>
+                            {item.icon}
+                        </ListItemIcon>
+                        <ListItemText primary={item.text} />
                     </ListItem>
                 ))}
-                {user?.role === UserRole.SUPER_ADMIN && (
-                    <ListItem disablePadding>
-                        <ListItemButton
-                            selected={location.pathname === '/admin'}
-                            onClick={() => {
-                                navigate('/admin');
-                                setMobileOpen(false);
-                            }}
-                        >
-                            <ListItemIcon sx={{ color: location.pathname === '/admin' ? 'primary.main' : 'inherit' }}>
-                                <AdminIcon />
-                            </ListItemIcon>
-                            <ListItemText primary="Admin" />
-                        </ListItemButton>
+
+                {currentUser?.is_superadmin && (
+                    <ListItem
+                        button
+                        onClick={() => handleNavigate('/admin')}
+                        selected={location.pathname === '/admin'}
+                        sx={{
+                            '&.Mui-selected': {
+                                backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                                '&:hover': {
+                                    backgroundColor: 'rgba(25, 118, 210, 0.12)',
+                                },
+                            },
+                        }}
+                    >
+                        <ListItemIcon sx={{ color: location.pathname === '/admin' ? 'primary.main' : 'inherit' }}>
+                            <AdminPanelSettingsIcon />
+                        </ListItemIcon>
+                        <ListItemText primary="Admin" />
                     </ListItem>
                 )}
             </List>
@@ -119,15 +140,11 @@ const Layout = () => {
 
     return (
         <Box sx={{ display: 'flex' }}>
-            <CssBaseline />
             <AppBar
                 position="fixed"
                 sx={{
-                    width: { sm: `calc(100% - ${drawerWidth}px)` },
-                    ml: { sm: `${drawerWidth}px` },
-                    bgcolor: 'white',
-                    color: 'text.primary',
-                    boxShadow: 1,
+                    width: { md: `calc(100% - ${drawerWidth}px)` },
+                    ml: { md: `${drawerWidth}px` },
                 }}
             >
                 <Toolbar>
@@ -136,81 +153,92 @@ const Layout = () => {
                         aria-label="open drawer"
                         edge="start"
                         onClick={handleDrawerToggle}
-                        sx={{ mr: 2, display: { sm: 'none' } }}
+                        sx={{ mr: 2, display: { md: 'none' } }}
                     >
                         <MenuIcon />
                     </IconButton>
+
                     <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-                        {menuItems.find((item) => item.path === location.pathname)?.text ||
+                        {menuItems.find(item => item.path === location.pathname)?.text ||
                             (location.pathname === '/admin' ? 'Admin' :
-                                location.pathname === '/profile' ? 'Profile' : 'Dashboard')}
+                                location.pathname === '/profile' ? 'Profile' : 'Async Calendar')}
                     </Typography>
-                    <IconButton
-                        size="large"
-                        edge="end"
-                        aria-label="account of current user"
-                        aria-controls="menu-appbar"
-                        aria-haspopup="true"
-                        onClick={handleProfileMenuOpen}
-                        color="inherit"
-                    >
-                        <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32 }}>
-                            {user?.name?.charAt(0) || user?.email?.charAt(0) || 'U'}
-                        </Avatar>
-                    </IconButton>
-                    <Menu
-                        id="menu-appbar"
-                        anchorEl={anchorEl}
-                        anchorOrigin={{
-                            vertical: 'bottom',
-                            horizontal: 'right',
-                        }}
-                        keepMounted
-                        transformOrigin={{
-                            vertical: 'top',
-                            horizontal: 'right',
-                        }}
-                        open={Boolean(anchorEl)}
-                        onClose={handleProfileMenuClose}
-                    >
-                        <MenuItem onClick={handleProfileClick}>
-                            <ListItemIcon>
-                                <AccountIcon fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText>Profile</ListItemText>
-                        </MenuItem>
-                        <MenuItem onClick={handleLogout}>
-                            <ListItemIcon>
-                                <LogoutIcon fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText>Logout</ListItemText>
-                        </MenuItem>
-                    </Menu>
+
+                    {currentUser && (
+                        <>
+                            <Tooltip title="Account settings">
+                                <IconButton
+                                    onClick={handleProfileMenuOpen}
+                                    size="small"
+                                    sx={{ ml: 2 }}
+                                    aria-controls="menu-appbar"
+                                    aria-haspopup="true"
+                                >
+                                    <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                                        {getInitials(currentUser.name)}
+                                    </Avatar>
+                                </IconButton>
+                            </Tooltip>
+                            <Menu
+                                id="menu-appbar"
+                                anchorEl={anchorEl}
+                                anchorOrigin={{
+                                    vertical: 'bottom',
+                                    horizontal: 'right',
+                                }}
+                                keepMounted
+                                transformOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right',
+                                }}
+                                open={Boolean(anchorEl)}
+                                onClose={handleProfileMenuClose}
+                            >
+                                <MenuItem onClick={() => { handleProfileMenuClose(); handleNavigate('/profile'); }}>
+                                    <ListItemIcon>
+                                        <PersonIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText>Profile</ListItemText>
+                                </MenuItem>
+                                <Divider />
+                                <MenuItem onClick={handleLogout}>
+                                    <ListItemIcon>
+                                        <LogoutIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText>Logout</ListItemText>
+                                </MenuItem>
+                            </Menu>
+                        </>
+                    )}
                 </Toolbar>
             </AppBar>
+
             <Box
                 component="nav"
-                sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+                sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
                 aria-label="mailbox folders"
             >
+                {/* Mobile drawer */}
                 <Drawer
                     variant="temporary"
                     open={mobileOpen}
                     onClose={handleDrawerToggle}
                     ModalProps={{
-                        keepMounted: true, // Better open performance on mobile.
+                        keepMounted: true, // Better open performance on mobile
                     }}
                     sx={{
-                        display: { xs: 'block', sm: 'none' },
+                        display: { xs: 'block', md: 'none' },
                         '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
                     }}
                 >
                     {drawer}
                 </Drawer>
+
+                {/* Desktop drawer */}
                 <Drawer
                     variant="permanent"
                     sx={{
-                        display: { xs: 'none', sm: 'block' },
+                        display: { xs: 'none', md: 'block' },
                         '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
                     }}
                     open
@@ -218,11 +246,18 @@ const Layout = () => {
                     {drawer}
                 </Drawer>
             </Box>
+
             <Box
                 component="main"
-                sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${drawerWidth}px)` } }}
+                sx={{
+                    flexGrow: 1,
+                    p: 3,
+                    width: { md: `calc(100% - ${drawerWidth}px)` },
+                    minHeight: '100vh',
+                    backgroundColor: '#f5f5f5',
+                }}
             >
-                <Toolbar />
+                <Toolbar /> {/* This is for spacing below the AppBar */}
                 <Outlet />
             </Box>
         </Box>

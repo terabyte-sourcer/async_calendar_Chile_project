@@ -1,51 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
-    Avatar,
-    Button,
-    TextField,
-    Link,
-    Grid,
+    Container,
     Box,
     Typography,
-    Container,
+    TextField,
+    Button,
+    Link,
     Paper,
+    Grid,
     Alert,
     CircularProgress,
+    InputAdornment,
+    IconButton
 } from '@mui/material';
-import { LockOutlined as LockOutlinedIcon } from '@mui/icons-material';
-import { useFormik } from 'formik';
-import * as Yup from 'yup';
-import { useAuth } from '../../utils/AuthContext';
-
-const validationSchema = Yup.object({
-    email: Yup.string()
-        .email('Enter a valid email')
-        .required('Email is required'),
-    password: Yup.string()
-        .required('Password is required'),
-});
+import {
+    Visibility as VisibilityIcon,
+    VisibilityOff as VisibilityOffIcon,
+    Login as LoginIcon
+} from '@mui/icons-material';
+import { AuthContext } from '../../context/AuthContext';
 
 const Login = () => {
-    const { login, error } = useAuth();
+    const { login, currentUser, loading, error } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [formError, setFormError] = useState('');
 
-    const formik = useFormik({
-        initialValues: {
-            email: '',
-            password: '',
-        },
-        validationSchema: validationSchema,
-        onSubmit: async (values) => {
-            setLoading(true);
-            const success = await login(values.email, values.password);
-            setLoading(false);
-            if (success) {
-                navigate('/');
-            }
-        },
-    });
+    useEffect(() => {
+        // If user is already logged in, redirect to dashboard
+        if (currentUser) {
+            navigate('/dashboard');
+        }
+    }, [currentUser, navigate]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setFormError('');
+
+        // Simple validation
+        if (!email) {
+            setFormError('Email is required');
+            return;
+        }
+        if (!password) {
+            setFormError('Password is required');
+            return;
+        }
+
+        const success = await login(email, password);
+        if (success) {
+            navigate('/dashboard');
+        }
+    };
+
+    const handleTogglePasswordVisibility = () => {
+        setShowPassword(!showPassword);
+    };
 
     return (
         <Container component="main" maxWidth="xs">
@@ -57,31 +70,23 @@ const Login = () => {
                     alignItems: 'center',
                 }}
             >
-                <Paper
-                    elevation={3}
-                    sx={{
-                        padding: 4,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        borderRadius: 2,
-                        width: '100%',
-                    }}
-                >
-                    <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
-                        <LockOutlinedIcon />
-                    </Avatar>
-                    <Typography component="h1" variant="h5">
-                        Sign in
-                    </Typography>
+                <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
+                    <Box sx={{ mb: 3, textAlign: 'center' }}>
+                        <Typography component="h1" variant="h4" gutterBottom>
+                            Async Calendar
+                        </Typography>
+                        <Typography component="h2" variant="h5">
+                            Sign In
+                        </Typography>
+                    </Box>
 
-                    {error && (
-                        <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
-                            {error}
+                    {(error || formError) && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {formError || error}
                         </Alert>
                     )}
 
-                    <Box component="form" onSubmit={formik.handleSubmit} noValidate sx={{ mt: 1, width: '100%' }}>
+                    <Box component="form" onSubmit={handleSubmit} noValidate>
                         <TextField
                             margin="normal"
                             required
@@ -91,10 +96,9 @@ const Login = () => {
                             name="email"
                             autoComplete="email"
                             autoFocus
-                            value={formik.values.email}
-                            onChange={formik.handleChange}
-                            error={formik.touched.email && Boolean(formik.errors.email)}
-                            helperText={formik.touched.email && formik.errors.email}
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            disabled={loading}
                         />
                         <TextField
                             margin="normal"
@@ -102,13 +106,25 @@ const Login = () => {
                             fullWidth
                             name="password"
                             label="Password"
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             id="password"
                             autoComplete="current-password"
-                            value={formik.values.password}
-                            onChange={formik.handleChange}
-                            error={formik.touched.password && Boolean(formik.errors.password)}
-                            helperText={formik.touched.password && formik.errors.password}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            disabled={loading}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            aria-label="toggle password visibility"
+                                            onClick={handleTogglePasswordVisibility}
+                                            edge="end"
+                                        >
+                                            {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                ),
+                            }}
                         />
                         <Button
                             type="submit"
@@ -116,8 +132,9 @@ const Login = () => {
                             variant="contained"
                             sx={{ mt: 3, mb: 2 }}
                             disabled={loading}
+                            startIcon={loading ? <CircularProgress size={20} /> : <LoginIcon />}
                         >
-                            {loading ? <CircularProgress size={24} /> : 'Sign In'}
+                            {loading ? 'Signing In...' : 'Sign In'}
                         </Button>
                         <Grid container>
                             <Grid item xs>

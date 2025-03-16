@@ -1,63 +1,56 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
+    Box,
     Paper,
     Typography,
-    Box,
     Button,
-    Grid,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
     FormControl,
     InputLabel,
     Select,
     MenuItem,
-    TextField,
+    Grid,
     IconButton,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
-    Divider,
-    CircularProgress,
     Alert,
-    Snackbar,
-    Chip
+    CircularProgress
 } from '@mui/material';
-import { TimePicker } from '@mui/x-date-pickers/TimePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker, TimePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import {
-    Add as AddIcon,
-    Delete as DeleteIcon,
-    Edit as EditIcon
-} from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import AddIcon from '@mui/icons-material/Add';
+import { format, parseISO } from 'date-fns';
+import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
-import { format, parse } from 'date-fns';
 
 const weekdays = [
-    { value: 0, label: 'Monday' },
-    { value: 1, label: 'Tuesday' },
-    { value: 2, label: 'Wednesday' },
-    { value: 3, label: 'Thursday' },
-    { value: 4, label: 'Friday' },
-    { value: 5, label: 'Saturday' },
-    { value: 6, label: 'Sunday' }
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday'
 ];
 
 const AvailabilityManager = () => {
-    const { currentUser } = useAuth();
+    const { currentUser } = useContext(AuthContext);
     const [availabilities, setAvailabilities] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [editMode, setEditMode] = useState(false);
-    const [editId, setEditId] = useState(null);
+    const [error, setError] = useState(null);
+    const [openDialog, setOpenDialog] = useState(false);
+    const [editingAvailability, setEditingAvailability] = useState(null);
+
     const [formData, setFormData] = useState({
-        day_of_week: 0,
-        start_time: new Date('2023-01-01T09:00:00'),
-        end_time: new Date('2023-01-01T17:00:00')
-    });
-    const [snackbar, setSnackbar] = useState({
-        open: false,
-        message: '',
-        severity: 'success'
+        day_of_week: '',
+        start_time: null,
+        end_time: null,
+        is_recurring: true
     });
 
     useEffect(() => {
@@ -67,44 +60,57 @@ const AvailabilityManager = () => {
     const fetchAvailabilities = async () => {
         setLoading(true);
         try {
-            const response = await api.get('/availabilities/');
-
-            // Sort availabilities by day of week and start time
-            const sortedAvailabilities = response.data.sort((a, b) => {
-                if (a.day_of_week !== b.day_of_week) {
-                    return a.day_of_week - b.day_of_week;
-                }
-                return a.start_time.localeCompare(b.start_time);
-            });
-
-            setAvailabilities(sortedAvailabilities);
-        } catch (error) {
-            console.error('Error fetching availabilities:', error);
-            showSnackbar('Failed to load availabilities', 'error');
+            const response = await api.get('/api/availabilities/');
+            setAvailabilities(response.data);
+            setError(null);
+        } catch (err) {
+            console.error('Error fetching availabilities:', err);
+            setError('Failed to load your availability data. Please try again later.');
         } finally {
             setLoading(false);
         }
     };
 
+    const handleOpenDialog = (availability = null) => {
+        if (availability) {
+            // Edit mode
+            setEditingAvailability(availability);
+            setFormData({
+                day_of_week: availability.day_of_week,
+                start_time: parseISO(`2023-01-01T${availability.start_time}`),
+                end_time: parseISO(`2023-01-01T${availability.end_time}`),
+                is_recurring: availability.is_recurring
+            });
+        } else {
+            // Create mode
+            setEditingAvailability(null);
+            setFormData({
+                day_of_week: '',
+                start_time: null,
+                end_time: null,
+                is_recurring: true
+            });
+        }
+        setOpenDialog(true);
+    };
+
+    const handleCloseDialog = () => {
+        setOpenDialog(false);
+    };
+
     const handleInputChange = (field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
-
-    const resetForm = () => {
         setFormData({
-            day_of_week: 0,
-            start_time: new Date('2023-01-01T09:00:00'),
-            end_time: new Date('2023-01-01T17:00:00')
+            ...formData,
+            [field]: value
         });
-        setEditMode(false);
-        setEditId(null);
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async () => {
+        // Validate form
+        if (!formData.day_of_week || !formData.start_time || !formData.end_time) {
+            setError('Please fill in all required fields');
+            return;
+        }
 
         // Format times for API
         const formattedData = {
@@ -114,91 +120,144 @@ const AvailabilityManager = () => {
         };
 
         try {
-            if (editMode) {
-                await api.put(`/availabilities/${editId}`, formattedData);
-                showSnackbar('Availability updated successfully');
+            if (editingAvailability) {
+                // Update existing availability
+                await api.put(`/api/availabilities/${editingAvailability.id}`, formattedData);
             } else {
-                await api.post('/availabilities/', formattedData);
-                showSnackbar('Availability added successfully');
+                // Create new availability
+                await api.post('/api/availabilities/', formattedData);
             }
 
+            // Refresh the list
             fetchAvailabilities();
-            resetForm();
-        } catch (error) {
-            console.error('Error saving availability:', error);
-            showSnackbar('Failed to save availability', 'error');
+            handleCloseDialog();
+            setError(null);
+        } catch (err) {
+            console.error('Error saving availability:', err);
+            setError('Failed to save availability. Please try again.');
         }
-    };
-
-    const handleEdit = (availability) => {
-        // Parse time strings to Date objects for the TimePicker
-        const startTime = parse(availability.start_time, 'HH:mm:ss', new Date());
-        const endTime = parse(availability.end_time, 'HH:mm:ss', new Date());
-
-        setFormData({
-            day_of_week: availability.day_of_week,
-            start_time: startTime,
-            end_time: endTime
-        });
-
-        setEditMode(true);
-        setEditId(availability.id);
     };
 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this availability?')) {
             try {
-                await api.delete(`/availabilities/${id}`);
-                showSnackbar('Availability deleted successfully');
+                await api.delete(`/api/availabilities/${id}`);
                 fetchAvailabilities();
-            } catch (error) {
-                console.error('Error deleting availability:', error);
-                showSnackbar('Failed to delete availability', 'error');
+            } catch (err) {
+                console.error('Error deleting availability:', err);
+                setError('Failed to delete availability. Please try again.');
             }
         }
     };
 
-    const showSnackbar = (message, severity = 'success') => {
-        setSnackbar({
-            open: true,
-            message,
-            severity
-        });
-    };
-
-    const handleCloseSnackbar = () => {
-        setSnackbar(prev => ({
-            ...prev,
-            open: false
-        }));
-    };
-
-    // Group availabilities by day of week
-    const groupedAvailabilities = availabilities.reduce((acc, availability) => {
-        const day = availability.day_of_week;
-        if (!acc[day]) {
-            acc[day] = [];
+    const renderAvailabilityList = () => {
+        if (availabilities.length === 0) {
+            return (
+                <Paper sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography variant="body1">
+                        You haven't set any availability yet. Click the "Add Availability" button to get started.
+                    </Typography>
+                </Paper>
+            );
         }
-        acc[day].push(availability);
-        return acc;
-    }, {});
+
+        // Group availabilities by day of week
+        const groupedAvailabilities = availabilities.reduce((acc, availability) => {
+            if (!acc[availability.day_of_week]) {
+                acc[availability.day_of_week] = [];
+            }
+            acc[availability.day_of_week].push(availability);
+            return acc;
+        }, {});
+
+        return (
+            <Box>
+                {weekdays.map(day => {
+                    const dayAvailabilities = groupedAvailabilities[day] || [];
+                    if (dayAvailabilities.length === 0) return null;
+
+                    return (
+                        <Paper key={day} sx={{ p: 2, mb: 2 }}>
+                            <Typography variant="h6" sx={{ mb: 2 }}>{day}</Typography>
+                            {dayAvailabilities.map(availability => (
+                                <Box
+                                    key={availability.id}
+                                    sx={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        p: 1,
+                                        borderRadius: 1,
+                                        mb: 1,
+                                        bgcolor: 'background.paper',
+                                        '&:hover': { bgcolor: 'action.hover' }
+                                    }}
+                                >
+                                    <Typography>
+                                        {availability.start_time.substring(0, 5)} - {availability.end_time.substring(0, 5)}
+                                        {availability.is_recurring ? ' (Recurring)' : ' (One-time)'}
+                                    </Typography>
+                                    <Box>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => handleOpenDialog(availability)}
+                                            aria-label="edit"
+                                        >
+                                            <EditIcon fontSize="small" />
+                                        </IconButton>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => handleDelete(availability.id)}
+                                            aria-label="delete"
+                                        >
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                    </Box>
+                                </Box>
+                            ))}
+                        </Paper>
+                    );
+                })}
+            </Box>
+        );
+    };
 
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <Paper elevation={3} sx={{ p: 3 }}>
-                <Typography variant="h5" gutterBottom>
-                    Manage Your Availability
-                </Typography>
-                <Divider sx={{ mb: 3 }} />
+            <Box>
+                {error && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                        {error}
+                    </Alert>
+                )}
 
-                <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                        <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
-                            <Typography variant="h6" gutterBottom>
-                                {editMode ? 'Edit Availability' : 'Add New Availability'}
-                            </Typography>
-                            <form onSubmit={handleSubmit}>
-                                <FormControl fullWidth margin="normal">
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => handleOpenDialog()}
+                    >
+                        Add Availability
+                    </Button>
+                </Box>
+
+                {loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                        <CircularProgress />
+                    </Box>
+                ) : (
+                    renderAvailabilityList()
+                )}
+
+                {/* Add/Edit Dialog */}
+                <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+                    <DialogTitle>
+                        {editingAvailability ? 'Edit Availability' : 'Add New Availability'}
+                    </DialogTitle>
+                    <DialogContent>
+                        <Grid container spacing={2} sx={{ mt: 1 }}>
+                            <Grid item xs={12}>
+                                <FormControl fullWidth>
                                     <InputLabel id="day-of-week-label">Day of Week</InputLabel>
                                     <Select
                                         labelId="day-of-week-label"
@@ -206,132 +265,55 @@ const AvailabilityManager = () => {
                                         label="Day of Week"
                                         onChange={(e) => handleInputChange('day_of_week', e.target.value)}
                                     >
-                                        {weekdays.map((day) => (
-                                            <MenuItem key={day.value} value={day.value}>
-                                                {day.label}
-                                            </MenuItem>
+                                        {weekdays.map(day => (
+                                            <MenuItem key={day} value={day}>{day}</MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>
+                            </Grid>
 
-                                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                                    <TimePicker
-                                        label="Start Time"
-                                        value={formData.start_time}
-                                        onChange={(newValue) => handleInputChange('start_time', newValue)}
-                                        renderInput={(params) => <TextField {...params} fullWidth />}
-                                    />
+                            <Grid item xs={12} sm={6}>
+                                <TimePicker
+                                    label="Start Time"
+                                    value={formData.start_time}
+                                    onChange={(newValue) => handleInputChange('start_time', newValue)}
+                                    renderInput={(params) => <TextField {...params} fullWidth />}
+                                />
+                            </Grid>
 
-                                    <TimePicker
-                                        label="End Time"
-                                        value={formData.end_time}
-                                        onChange={(newValue) => handleInputChange('end_time', newValue)}
-                                        renderInput={(params) => <TextField {...params} fullWidth />}
-                                    />
-                                </Box>
+                            <Grid item xs={12} sm={6}>
+                                <TimePicker
+                                    label="End Time"
+                                    value={formData.end_time}
+                                    onChange={(newValue) => handleInputChange('end_time', newValue)}
+                                    renderInput={(params) => <TextField {...params} fullWidth />}
+                                />
+                            </Grid>
 
-                                <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
-                                    <Button
-                                        type="submit"
-                                        variant="contained"
-                                        color="primary"
-                                        startIcon={editMode ? <EditIcon /> : <AddIcon />}
+                            <Grid item xs={12}>
+                                <FormControl fullWidth>
+                                    <InputLabel id="recurring-label">Recurring</InputLabel>
+                                    <Select
+                                        labelId="recurring-label"
+                                        value={formData.is_recurring}
+                                        label="Recurring"
+                                        onChange={(e) => handleInputChange('is_recurring', e.target.value)}
                                     >
-                                        {editMode ? 'Update' : 'Add'}
-                                    </Button>
-
-                                    {editMode && (
-                                        <Button
-                                            variant="outlined"
-                                            onClick={resetForm}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    )}
-                                </Box>
-                            </form>
-                        </Paper>
-                    </Grid>
-
-                    <Grid item xs={12} md={6}>
-                        <Paper elevation={1} sx={{ p: 2 }}>
-                            <Typography variant="h6" gutterBottom>
-                                Your Availability Schedule
-                            </Typography>
-
-                            {loading ? (
-                                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                                    <CircularProgress />
-                                </Box>
-                            ) : availabilities.length === 0 ? (
-                                <Alert severity="info">
-                                    You haven't set any availability yet. Add your available time slots to get started.
-                                </Alert>
-                            ) : (
-                                <List>
-                                    {weekdays.map((day) => {
-                                        const dayAvailabilities = groupedAvailabilities[day.value] || [];
-
-                                        if (dayAvailabilities.length === 0) {
-                                            return null;
-                                        }
-
-                                        return (
-                                            <React.Fragment key={day.value}>
-                                                <ListItem>
-                                                    <ListItemText
-                                                        primary={
-                                                            <Typography variant="subtitle1" fontWeight="bold">
-                                                                {day.label}
-                                                            </Typography>
-                                                        }
-                                                    />
-                                                </ListItem>
-
-                                                {dayAvailabilities.map((availability) => (
-                                                    <ListItem key={availability.id} sx={{ pl: 4 }}>
-                                                        <ListItemText
-                                                            primary={
-                                                                <Chip
-                                                                    label={`${availability.start_time.substring(0, 5)} - ${availability.end_time.substring(0, 5)}`}
-                                                                    color="primary"
-                                                                    variant="outlined"
-                                                                />
-                                                            }
-                                                        />
-                                                        <ListItemSecondaryAction>
-                                                            <IconButton edge="end" onClick={() => handleEdit(availability)}>
-                                                                <EditIcon />
-                                                            </IconButton>
-                                                            <IconButton edge="end" onClick={() => handleDelete(availability.id)}>
-                                                                <DeleteIcon />
-                                                            </IconButton>
-                                                        </ListItemSecondaryAction>
-                                                    </ListItem>
-                                                ))}
-
-                                                <Divider component="li" />
-                                            </React.Fragment>
-                                        );
-                                    })}
-                                </List>
-                            )}
-                        </Paper>
-                    </Grid>
-                </Grid>
-
-                {/* Snackbar for notifications */}
-                <Snackbar
-                    open={snackbar.open}
-                    autoHideDuration={6000}
-                    onClose={handleCloseSnackbar}
-                    anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                >
-                    <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-                        {snackbar.message}
-                    </Alert>
-                </Snackbar>
-            </Paper>
+                                        <MenuItem value={true}>Yes (Weekly)</MenuItem>
+                                        <MenuItem value={false}>No (One-time)</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                        </Grid>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseDialog}>Cancel</Button>
+                        <Button onClick={handleSubmit} variant="contained">
+                            Save
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            </Box>
         </LocalizationProvider>
     );
 };
