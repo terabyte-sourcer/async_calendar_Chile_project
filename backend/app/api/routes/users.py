@@ -62,6 +62,20 @@ def read_users(
     return users
 
 
+@router.get("/list", response_model=List[UserSchema])
+def read_users_for_regular_users(
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_verified_user),
+) -> Any:
+    """
+    Retrieve users with limited information for regular users.
+    """
+    users = db.query(User).filter(User.is_active == True).offset(skip).limit(limit).all()
+    return users
+
+
 @router.post("", response_model=UserSchema)
 def create_user(
     *,

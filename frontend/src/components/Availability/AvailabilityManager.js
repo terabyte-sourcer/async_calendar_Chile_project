@@ -38,6 +38,16 @@ const weekdays = [
     'Sunday'
 ];
 
+// Helper function to convert day name to index (0-6)
+const getDayIndex = (dayName) => {
+    return weekdays.indexOf(dayName);
+};
+
+// Helper function to convert day index to name
+const getDayName = (dayIndex) => {
+    return weekdays[dayIndex];
+};
+
 const AvailabilityManager = () => {
     const { currentUser } = useContext(AuthContext);
     const [availabilities, setAvailabilities] = useState([]);
@@ -60,8 +70,13 @@ const AvailabilityManager = () => {
     const fetchAvailabilities = async () => {
         setLoading(true);
         try {
-            const response = await api.get('/api/availabilities/');
-            setAvailabilities(response.data);
+            const response = await api.get('/api/availability/');
+            // Process the availabilities to convert day_of_week from index to name
+            const processedAvailabilities = response.data.availabilities.map(avail => ({
+                ...avail,
+                day_of_week: getDayName(avail.day_of_week)
+            }));
+            setAvailabilities(processedAvailabilities);
             setError(null);
         } catch (err) {
             console.error('Error fetching availabilities:', err);
@@ -115,6 +130,7 @@ const AvailabilityManager = () => {
         // Format times for API
         const formattedData = {
             ...formData,
+            day_of_week: getDayIndex(formData.day_of_week), // Convert day name to index
             start_time: format(formData.start_time, 'HH:mm:ss'),
             end_time: format(formData.end_time, 'HH:mm:ss')
         };
@@ -122,10 +138,10 @@ const AvailabilityManager = () => {
         try {
             if (editingAvailability) {
                 // Update existing availability
-                await api.put(`/api/availabilities/${editingAvailability.id}`, formattedData);
+                await api.put(`/api/availability/${editingAvailability.id}`, formattedData);
             } else {
                 // Create new availability
-                await api.post('/api/availabilities/', formattedData);
+                await api.post('/api/availability/', formattedData);
             }
 
             // Refresh the list
@@ -141,7 +157,7 @@ const AvailabilityManager = () => {
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this availability?')) {
             try {
-                await api.delete(`/api/availabilities/${id}`);
+                await api.delete(`/api/availability/${id}`);
                 fetchAvailabilities();
             } catch (err) {
                 console.error('Error deleting availability:', err);

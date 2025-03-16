@@ -72,10 +72,10 @@ export const calendarAPI = {
 
 // Availability API
 export const availabilityAPI = {
-    getAvailabilities: () => api.get('/availability'),
-    createAvailability: (availabilityData) => api.post('/availability', availabilityData),
-    updateAvailability: (id, availabilityData) => api.put(`/availability/${id}`, availabilityData),
-    deleteAvailability: (id) => api.delete(`/availability/${id}`),
+    getAvailabilities: () => api.get('/api/availability'),
+    createAvailability: (availabilityData) => api.post('/api/availability', availabilityData),
+    updateAvailability: (id, availabilityData) => api.put(`/api/availability/${id}`, availabilityData),
+    deleteAvailability: (id) => api.delete(`/api/availability/${id}`),
 };
 
 // Meeting API

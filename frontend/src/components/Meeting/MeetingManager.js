@@ -102,7 +102,7 @@ const MeetingManager = () => {
 
     const fetchUsers = async () => {
         try {
-            const response = await api.get('/api/users/');
+            const response = await api.get('/api/users/list');
             setUsers(response.data);
         } catch (err) {
             console.error('Error fetching users:', err);
