@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Container,
@@ -29,7 +29,7 @@ import {
     Delete as DeleteIcon,
     PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
-import api from '../../services/api';
+import api, { teamAPI, userAPI } from '../../services/api';
 
 const TeamDetail = () => {
     const { id } = useParams();
@@ -45,7 +45,7 @@ const TeamDetail = () => {
         const fetchTeam = async () => {
             try {
                 setLoading(true);
-                const response = await api.get(`/teams/${id}`);
+                const response = await teamAPI.getTeam(id);
                 setTeam(response.data);
                 setSelectedMembers(response.data.members || []);
                 setLoading(false);
@@ -58,7 +58,7 @@ const TeamDetail = () => {
 
         const fetchUsers = async () => {
             try {
-                const response = await api.get('/users/');
+                const response = await userAPI.getUsers();
                 setUsers(response.data);
             } catch (err) {
                 console.error('Error fetching users:', err);
@@ -80,12 +80,12 @@ const TeamDetail = () => {
     const handleUpdateMembers = async () => {
         try {
             const memberIds = selectedMembers.map(member => member.id);
-            await api.put(`/teams/${id}`, {
+            await teamAPI.updateTeamMembers(id, {
                 member_ids: memberIds
             });
 
             // Refresh team data
-            const response = await api.get(`/teams/${id}`);
+            const response = await teamAPI.getTeam(id);
             setTeam(response.data);
 
             handleCloseDialog();
@@ -98,7 +98,7 @@ const TeamDetail = () => {
     const handleDeleteTeam = async () => {
         if (window.confirm('Are you sure you want to delete this team?')) {
             try {
-                await api.delete(`/teams/${id}`);
+                await teamAPI.deleteTeam(id);
                 navigate('/teams');
             } catch (err) {
                 console.error('Error deleting team:', err);
