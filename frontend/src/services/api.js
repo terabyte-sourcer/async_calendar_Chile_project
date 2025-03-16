@@ -46,11 +46,11 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-    login: (email, password) => api.post('/auth/login/access-token', { username: email, password }),
-    register: (userData) => api.post('/auth/register', userData),
-    verifyEmail: (token) => api.post(`/auth/verify-email/${token}`),
-    requestVerificationEmail: () => api.post('/auth/request-verification-email'),
-    resetPassword: (data) => api.post('/auth/reset-password', data),
+    login: (email, password) => api.post('/api/auth/login', { username: email, password }),
+    register: (userData) => api.post('/api/auth/register', userData),
+    verifyEmail: (token) => api.post(`/api/auth/verify-email/${token}`),
+    requestVerificationEmail: () => api.post('/api/auth/request-verification'),
+    resetPassword: (data) => api.post('/api/auth/reset-password', data),
 };
 
 // User API

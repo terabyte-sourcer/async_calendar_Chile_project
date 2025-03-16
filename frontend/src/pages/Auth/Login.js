@@ -82,7 +82,7 @@ const Login = () => {
 
                     {(error || formError) && (
                         <Alert severity="error" sx={{ mb: 2 }}>
-                            {formError || error}
+                            {typeof error === 'object' ? JSON.stringify(error) : error || formError}
                         </Alert>
                     )}
 

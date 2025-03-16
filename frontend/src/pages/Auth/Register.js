@@ -171,7 +171,7 @@ const Register = () => {
                         <>
                             {(error || formError) && (
                                 <Alert severity="error" sx={{ mb: 2 }}>
-                                    {formError || error}
+                                    {typeof error === 'object' ? JSON.stringify(error) : (formError || error)}
                                 </Alert>
                             )}
 

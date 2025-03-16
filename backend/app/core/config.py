@@ -1,8 +1,8 @@
 import secrets
+import os
 from typing import List, Optional, Union
 
-from pydantic import AnyHttpUrl, EmailStr, validator
-from pydantic_settings import BaseSettings
+from pydantic import AnyHttpUrl, EmailStr, validator, BaseSettings
 
 
 class Settings(BaseSettings):
@@ -22,6 +22,8 @@ class Settings(BaseSettings):
         raise ValueError(v)
 
     # Database
+    # Use SQLite for development
+    USE_SQLITE: bool = True
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
@@ -32,6 +34,14 @@ class Settings(BaseSettings):
     def assemble_db_connection(cls, v: Optional[str], values: dict) -> str:
         if isinstance(v, str):
             return v
+        
+        if values.get("USE_SQLITE", True):
+            # Use SQLite for development
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            sqlite_file = os.path.join(base_dir, "app.db")
+            return f"sqlite:///{sqlite_file}"
+        
+        # Use PostgreSQL if specified
         return f"postgresql://{values.get('POSTGRES_USER')}:{values.get('POSTGRES_PASSWORD')}@{values.get('POSTGRES_SERVER')}/{values.get('POSTGRES_DB')}"
 
     # Email

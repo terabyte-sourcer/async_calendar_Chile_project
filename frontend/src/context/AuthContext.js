@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import { authAPI } from '../services/api';
 
 export const AuthContext = createContext();
 
@@ -33,8 +34,18 @@ export const AuthProvider = ({ children }) => {
         setError(null);
 
         try {
-            const response = await api.post('/api/auth/login', { email, password });
-            const { access_token, user } = response.data;
+            // Use FormData for OAuth2 compatibility
+            const formData = new FormData();
+            formData.append('username', email);  // OAuth2 expects 'username'
+            formData.append('password', password);
+
+            const response = await api.post('/api/auth/login', formData, {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
+
+            const { access_token, token_type, user } = response.data;
 
             // Save token and user data
             localStorage.setItem('token', access_token);
@@ -47,7 +58,18 @@ export const AuthProvider = ({ children }) => {
             return true;
         } catch (err) {
             console.error('Login error:', err);
-            setError(err.response?.data?.detail || 'Invalid email or password');
+            // Handle different types of error responses
+            let errorMessage = 'Invalid email or password';
+            if (err.response) {
+                if (err.response.data && err.response.data.detail) {
+                    errorMessage = typeof err.response.data.detail === 'string'
+                        ? err.response.data.detail
+                        : JSON.stringify(err.response.data.detail);
+                } else if (err.response.status === 422) {
+                    errorMessage = 'Validation error. Please check your input.';
+                }
+            }
+            setError(errorMessage);
             return false;
         } finally {
             setLoading(false);
@@ -59,11 +81,22 @@ export const AuthProvider = ({ children }) => {
         setError(null);
 
         try {
-            const response = await api.post('/api/auth/register', userData);
+            const response = await authAPI.register(userData);
             return true;
         } catch (err) {
             console.error('Registration error:', err);
-            setError(err.response?.data?.detail || 'Registration failed. Please try again.');
+            // Handle different types of error responses
+            let errorMessage = 'Registration failed. Please try again.';
+            if (err.response) {
+                if (err.response.data && err.response.data.detail) {
+                    errorMessage = typeof err.response.data.detail === 'string'
+                        ? err.response.data.detail
+                        : JSON.stringify(err.response.data.detail);
+                } else if (err.response.status === 422) {
+                    errorMessage = 'Validation error. Please check your input.';
+                }
+            }
+            setError(errorMessage);
             return false;
         } finally {
             setLoading(false);
