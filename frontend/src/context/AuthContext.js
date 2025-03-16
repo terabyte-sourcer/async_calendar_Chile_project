@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
                 }
             });
 
-            const { access_token, token_type, user } = response.data;
+            const { access_token, user } = response.data;
 
             // Save token and user data
             localStorage.setItem('token', access_token);
@@ -82,6 +82,7 @@ export const AuthProvider = ({ children }) => {
 
         try {
             const response = await authAPI.register(userData);
+            if (response) console.log(response);
             return true;
         } catch (err) {
             console.error('Registration error:', err);

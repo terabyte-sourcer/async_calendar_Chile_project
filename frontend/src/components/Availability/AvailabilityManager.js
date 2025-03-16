@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
@@ -18,14 +18,13 @@ import {
     Alert,
     CircularProgress
 } from '@mui/material';
-import { DatePicker, TimePicker } from '@mui/x-date-pickers';
+import { TimePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import { format, parseISO } from 'date-fns';
-import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 
 const weekdays = [
@@ -49,7 +48,6 @@ const getDayName = (dayIndex) => {
 };
 
 const AvailabilityManager = () => {
-    const { currentUser } = useContext(AuthContext);
     const [availabilities, setAvailabilities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

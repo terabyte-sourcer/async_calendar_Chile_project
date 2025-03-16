@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { Container, Typography, Box, Alert } from '@mui/material';
 import AdminPanel from '../../components/Admin/AdminPanel';
 import { AuthContext } from '../../context/AuthContext';

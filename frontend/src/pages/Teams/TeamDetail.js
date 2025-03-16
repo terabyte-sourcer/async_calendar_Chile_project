@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Container,
@@ -25,11 +25,10 @@ import {
 } from '@mui/material';
 import {
     ArrowBack as ArrowBackIcon,
-    Edit as EditIcon,
     Delete as DeleteIcon,
     PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
-import api, { teamAPI, userAPI } from '../../services/api';
+import { teamAPI, userAPI } from '../../services/api';
 
 const TeamDetail = () => {
     const { id } = useParams();

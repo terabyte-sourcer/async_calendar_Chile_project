@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
@@ -21,9 +21,7 @@ import {
     Select,
     MenuItem,
     Autocomplete,
-    IconButton,
     Divider,
-    Tooltip
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -35,11 +33,9 @@ import EventIcon from '@mui/icons-material/Event';
 import GroupIcon from '@mui/icons-material/Group';
 import PersonIcon from '@mui/icons-material/Person';
 import { format, parseISO, isAfter, isBefore } from 'date-fns';
-import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 
 const MeetingManager = () => {
-    const { currentUser } = useContext(AuthContext);
     const [meetings, setMeetings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

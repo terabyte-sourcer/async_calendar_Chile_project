@@ -14,7 +14,6 @@ import {
     Select,
     MenuItem,
     Avatar,
-    IconButton,
     Tabs,
     Tab
 } from '@mui/material';

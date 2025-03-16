@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
@@ -27,7 +27,6 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SyncIcon from '@mui/icons-material/Sync';
-import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 
 const CALENDAR_TYPES = [
@@ -37,7 +36,6 @@ const CALENDAR_TYPES = [
 ];
 
 const CalendarConnections = () => {
-    const { currentUser } = useContext(AuthContext);
     const [calendars, setCalendars] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

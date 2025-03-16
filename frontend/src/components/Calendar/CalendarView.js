@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
-    Typography,
     CircularProgress,
     Alert,
-    Chip,
     Grid,
     Button,
     Dialog,
@@ -26,11 +24,9 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { format, parseISO, addHours } from 'date-fns';
-import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 
 const CalendarView = () => {
-    const { currentUser } = useContext(AuthContext);
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

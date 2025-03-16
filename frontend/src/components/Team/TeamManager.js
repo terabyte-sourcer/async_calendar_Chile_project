@@ -1,13 +1,9 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Paper,
     Typography,
     Button,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
     IconButton,
     Dialog,
     DialogTitle,
@@ -16,7 +12,6 @@ import {
     TextField,
     CircularProgress,
     Alert,
-    Divider,
     Chip,
     Grid
 } from '@mui/material';
@@ -25,11 +20,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import GroupIcon from '@mui/icons-material/Group';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 
 const TeamManager = () => {
-    const { currentUser } = useContext(AuthContext);
     const navigate = useNavigate();
     const [teams, setTeams] = useState([]);
     const [loading, setLoading] = useState(true);
