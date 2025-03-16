@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, users, calendars, meetings, admin
+from app.api.routes import auth, users, calendars, meetings, admin, teams
 from app.core.config import settings
 from app.db.session import engine
 from app.db.base import Base
@@ -30,6 +30,7 @@ app.include_router(auth.router, prefix="/api", tags=["authentication"])
 app.include_router(users.router, prefix="/api", tags=["users"])
 app.include_router(calendars.router, prefix="/api", tags=["calendars"])
 app.include_router(meetings.router, prefix="/api", tags=["meetings"])
+app.include_router(teams.router, prefix="/api", tags=["teams"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 
 @app.get("/api/health")
