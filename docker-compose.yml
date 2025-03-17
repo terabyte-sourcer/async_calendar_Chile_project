@@ -1,59 +1,59 @@
 version: '3.8'
 
 services:
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/async_calendar
-      - SECRET_KEY=your_secret_key_here
-      - SMTP_HOST=mailhog
-      - SMTP_PORT=1025
-      - SMTP_USER=
-      - SMTP_PASSWORD=
-      - EMAILS_FROM_EMAIL=noreply@asynccalendar.com
-      - FRONTEND_URL=http://localhost
-    depends_on:
-      - db
-    networks:
-      - async-calendar-network
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "80:80"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8000
-    depends_on:
-      - backend
-    networks:
-      - async-calendar-network
-
-  db:
-    image: postgres:13
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: async-calendar-postgres
     volumes:
-      - postgres_data:/var/lib/postgresql/data/
+      - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=async_calendar
     ports:
       - "5432:5432"
-    networks:
-      - async-calendar-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
-  mailhog:
-    image: mailhog/mailhog
+  # FastAPI Backend
+  backend:
+    build: ./backend
+    container_name: async-calendar-backend
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    environment:
+      - USE_SQLITE=false
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=async_calendar
+      - SECRET_KEY=${SECRET_KEY:-supersecretkey}
+      - CORS_ORIGINS=["http://localhost:3000", "http://localhost:80", "http://frontend"]
     ports:
-      - "1025:1025" # SMTP port
-      - "8025:8025" # Web UI port
-    networks:
-      - async-calendar-network
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
-networks:
-  async-calendar-network:
-    driver: bridge
+  # React Frontend
+  frontend:
+    build: ./frontend
+    container_name: async-calendar-frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:

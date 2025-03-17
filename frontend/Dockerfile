@@ -1,4 +1,5 @@
-FROM node:16-alpine as build
+# Build stage
+FROM node:18-alpine as build
 
 WORKDIR /app
 
@@ -6,25 +7,29 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Copy the rest of the code
 COPY . .
 
-# Build the app
+# Set environment variables for production build
+ENV NODE_ENV=production
+ENV REACT_APP_API_URL=/api
+
+# Build the application
 RUN npm run build
 
-# Production environment
-FROM nginx:stable-alpine
+# Production stage
+FROM nginx:alpine
 
-# Copy build files from the build stage
+# Copy the build output to replace the default nginx contents
 COPY --from=build /app/build /usr/share/nginx/html
 
-# Copy nginx configuration
+# Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
+# Expose port
 EXPOSE 80
 
-# Start nginx
+# Start Nginx server
 CMD ["nginx", "-g", "daemon off;"] 

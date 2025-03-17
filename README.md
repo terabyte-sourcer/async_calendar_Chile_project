@@ -238,16 +238,67 @@ The application uses the following main database models:
 
 ### Docker Deployment
 
-```bash
-# Build and start the containers
-docker-compose up -d
+The project includes Docker configuration for easy deployment. The setup includes:
 
-# View logs
-docker-compose logs -f
+- A PostgreSQL database container
+- A FastAPI backend container
+- A React frontend container with Nginx
 
-# Stop the containers
-docker-compose down
-```
+#### Prerequisites
+
+- Docker and Docker Compose installed on your system
+- Git to clone the repository
+
+#### Steps to Deploy with Docker
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/async-calendar.git
+   cd async-calendar
+   ```
+
+2. Create a `.env` file in the project root (optional):
+   ```
+   SECRET_KEY=your-secure-secret-key
+   ```
+
+3. Build and start the containers:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. Access the application:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000
+   - API Documentation: http://localhost:8000/docs
+
+5. View logs:
+   ```bash
+   # View all logs
+   docker-compose logs -f
+   
+   # View logs for a specific service
+   docker-compose logs -f backend
+   docker-compose logs -f frontend
+   docker-compose logs -f postgres
+   ```
+
+6. Stop the containers:
+   ```bash
+   docker-compose down
+   ```
+
+7. To remove all data (including the database volume):
+   ```bash
+   docker-compose down -v
+   ```
+
+#### Docker Configuration Files
+
+- `docker-compose.yml`: Orchestrates all services
+- `backend/Dockerfile`: Builds the FastAPI backend
+- `frontend/Dockerfile`: Builds the React frontend with Nginx
+- `frontend/nginx.conf`: Configures Nginx for the frontend
 
 ### Manual Deployment
 
